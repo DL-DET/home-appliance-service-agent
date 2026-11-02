@@ -25,7 +25,7 @@ from agent.tools.middleware import (
     monitor_tool,
     report_prompt_switch,
 )
-from model.factory import chat_model
+from model.factory import get_chat_model
 from services.customer_data import get_user_profile
 from utils.logger_handler import logger
 from utils.prompt_loader import load_system_prompts
@@ -49,7 +49,7 @@ class ReactAgent:
     def __init__(self, history_limit: int = 12) -> None:
         self.history_limit = history_limit
         self.agent = create_agent(
-            model=chat_model,
+            model=get_chat_model(),
             system_prompt=load_system_prompts(),
             tools=[
                 rag_summarize,

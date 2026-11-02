@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolRuntime
 
@@ -16,12 +18,15 @@ from services.customer_data import (
 from utils.logger_handler import logger
 
 
-rag = RagSummarizeService()
+@lru_cache(maxsize=1)
+def _get_rag_service() -> RagSummarizeService:
+    """工具被真正调用时才加载向量库，避免模块导入依赖 API Key 和本地索引。"""
+    return RagSummarizeService()
 
 
 @tool(description="从家电知识库检索参考资料，返回总结和可追溯来源")
 def rag_summarize(query: str) -> str:
-    return rag.rag_summarize(query)
+    return _get_rag_service().rag_summarize(query)
 
 
 @tool(description="根据当前登录用户查询订单状态；只能访问自己的订单")

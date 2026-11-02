@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from functools import lru_cache
 import os
 from pathlib import Path
 from typing import Optional
@@ -16,7 +17,7 @@ if _PROJECT_ROOT not in sys.path:
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_community.chat_models.tongyi import ChatTongyi
 from langchain_core.embeddings import Embeddings
-from langchain_community.chat_models.tongyi import BaseChatModel
+from langchain_core.language_models import BaseChatModel
 from utils.config_handler import rag_conf
 
 
@@ -27,6 +28,13 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 def has_dashscope_api_key() -> bool:
     """用于界面提前提示配置问题，避免首次对话时才报错。"""
     return bool(os.getenv("DASHSCOPE_API_KEY", "").strip())
+
+
+def _require_dashscope_api_key() -> None:
+    if not has_dashscope_api_key():
+        raise RuntimeError(
+            "缺少 DASHSCOPE_API_KEY，请配置项目根目录的 .env 或 Streamlit secrets。"
+        )
 
 
 
@@ -53,5 +61,14 @@ class EmbeddingModelFactory(BaseModelFactory):
         return DashScopeEmbeddings(model=rag_conf["embedding_model_name"])
 
 
-chat_model=ChatModelFactory().generator()
-embedding_model=EmbeddingModelFactory().generator()
+@lru_cache(maxsize=1)
+def get_chat_model() -> BaseChatModel:
+    """只有真正调用模型时才实例化，测试和页面启动不需要 API Key。"""
+    _require_dashscope_api_key()
+    return ChatModelFactory().generator()
+
+
+@lru_cache(maxsize=1)
+def get_embedding_model() -> Embeddings:
+    _require_dashscope_api_key()
+    return EmbeddingModelFactory().generator()
