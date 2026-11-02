@@ -5,6 +5,7 @@ from services.customer_data import (
     get_usage_record,
     get_user_profile,
     get_user_profiles,
+    normalize_newlines,
 )
 
 
@@ -24,6 +25,10 @@ def test_usage_data_is_loaded_with_csv_parser():
     payload = format_usage_record(record)
     assert '"user_id": "1004"' in payload
     assert '"month": "2025-12"' in payload
+
+
+def test_normalize_newlines_restores_escaped_newlines():
+    assert normalize_newlines("使用率:90%\\n日均使用:50分钟") == "使用率:90%\n日均使用:50分钟"
 
 
 def test_order_access_is_scoped_to_current_user():

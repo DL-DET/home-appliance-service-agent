@@ -124,6 +124,11 @@ def format_usage_record(record: UsageRecord) -> str:
     return json.dumps(asdict(record), ensure_ascii=False)
 
 
+def normalize_newlines(value: str) -> str:
+    """CSV 字段里可能存的是字面量 \\n，展示前还原成真实换行。"""
+    return (value or "").replace("\\n", "\n")
+
+
 @lru_cache(maxsize=1)
 def get_orders() -> dict[str, OrderRecord]:
     rows = _read_csv(agent_conf["orders_path"])

@@ -8,6 +8,10 @@
 2. 多用户环境下，如何保证模型不会读到别人的订单和使用记录？
 3. 回答错了时，如何定位是检索、工具、权限还是模型生成出了问题？
 
+## 界面预览
+
+![清尘智服工作台](docs/ui-preview.png)
+
 ## 核心能力
 
 - **Agent 工具调用**：根据问题自主选择知识库、订单、用户、月份和使用记录工具。
@@ -129,7 +133,7 @@ Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
 python -m pytest
 ```
 
-当前 36 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
+当前 37 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
 
 ## RAG 评测
 

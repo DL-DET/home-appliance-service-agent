@@ -20,6 +20,7 @@ from services.customer_data import (
     get_available_months,
     get_usage_record,
     get_user_profile,
+    normalize_newlines,
 )
 from ui.agent_stream import consume_agent_events
 from utils.config_handler import auth_conf
@@ -257,8 +258,8 @@ with st.sidebar:
         st.write(f"在用产品：{profile.product}")
         if record:
             st.caption(f"{selected_month} 使用记录")
-            st.markdown(record.efficiency.replace("\n", "  \n"))
-            st.markdown(record.consumables.replace("\n", "  \n"))
+            st.markdown(normalize_newlines(record.efficiency).replace("\n", "  \n"))
+            st.markdown(normalize_newlines(record.consumables).replace("\n", "  \n"))
 
     st.space("small")
     if _api_key_configured():
