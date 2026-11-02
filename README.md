@@ -129,7 +129,7 @@ Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
 python -m pytest
 ```
 
-当前 51 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
+当前 36 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
 
 ## RAG 评测
 
@@ -169,21 +169,6 @@ python -m eval.run_agent_eval --limit 5
 python -m eval.run_agent_eval --output eval/agent_results.jsonl
 ```
 
-### LLM-as-judge
-
-在规则指标之外，可选用 judge 评忠实度、相关性、上下文精度：
-
-```powershell
-python -m eval.run_agent_eval --limit 20 --judge --output eval/day1_judge_results.jsonl --report eval/day1_judge_report.md
-python -m eval.calibrate_judge --init --results eval/day1_judge_results.jsonl --output eval/judge_calibration.csv
-```
-
-默认 judge 模型为 `qwen-plus`，可用 `JUDGE_MODEL_NAME` 覆盖。校准表的 `human_*` 列填 0/1 后运行：
-
-```powershell
-python -m eval.calibrate_judge --check eval/judge_calibration.csv
-```
-
 ## 关键设计
 
 ### 为什么不做纯工作流？
@@ -203,7 +188,7 @@ python -m eval.calibrate_judge --check eval/judge_calibration.csv
 - 演示数据来自本地 CSV，生产环境应替换为带鉴权的订单与设备服务。
 - 当前使用 Streamlit session state 保存单次会话，没有持久化多轮记忆。
 - 通义千问与 Embedding 仍通过 `langchain-community` 接入；该包已进入维护收尾阶段，生产化时应迁移到受维护的独立集成包或 OpenAI 兼容接口。
-- Agent 评测 30 条、检索评测 10 条，均为单轮自标样本，规模有限；尚无 LLM-as-judge 与 CI 评测门禁。
+- Agent 评测 30 条、检索评测 10 条，均为单轮自标样本，规模有限；尚无 CI 评测门禁。
 - 没有接入 LangSmith、OpenTelemetry 或统一成本统计。
 - 多用户并发下的限流、重试、熔断和密钥托管仍属于生产化阶段任务。
 
@@ -211,8 +196,5 @@ python -m eval.calibrate_judge --check eval/judge_calibration.csv
 
 完整的两分钟介绍、简历写法、高频追问和学习路线见：
 
-- [面试讲解指南](docs/INTERVIEW_GUIDE.md)
-- [四周学习路线](docs/LEARNING_ROADMAP.md)
-- [一周冲刺计划](docs/ONE_WEEK_PLAN.md)
-- [第 1 天工程基线教程](docs/DAY01_GUIDE.md)
-- [第 2 天身份与权限教程](docs/DAY02_GUIDE.md)
+- [五天学习与项目完善计划](docs/SPRINT5/求职冲刺5天计划.md)
+- [项目优化待办](docs/SPRINT5/优化待办.md)

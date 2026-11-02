@@ -65,7 +65,6 @@ def rescore_results(
             actual_route=item.get("actual_route"),
         )
         result["error"] = item.get("error", "")
-        result["evidence"] = str(item.get("evidence", ""))
         rescored.append(result)
 
     return rescored, missing
@@ -125,7 +124,6 @@ def run_case(agent: Any, case: dict) -> dict:
     answer_parts: list[str] = []
     tool_names: list[str] = []
     tool_results: list[Any] = []
-    evidence_parts: list[str] = []
     error = ""
 
     try:
@@ -139,9 +137,6 @@ def run_case(agent: Any, case: dict) -> dict:
                 tool_names.append(event.name)
             elif event.kind == "tool_result":
                 tool_results.append(event)
-                content = str(event.content or "").strip()
-                if content:
-                    evidence_parts.append(f"[{event.name}]\n{content}")
     except Exception as exc:  # 单条失败要记录，不能让整批评测中断
         error = f"{type(exc).__name__}: {exc}"
 
@@ -160,33 +155,7 @@ def run_case(agent: Any, case: dict) -> dict:
         actual_route=None,
     )
     result["error"] = error
-    result["evidence"] = "\n\n".join(evidence_parts)
     return result
-
-
-def apply_judge_if_needed(results: list[dict], *, enabled: bool) -> list[dict]:
-    """按需调用 judge；正常评测不导入模型，也不要求 API Key。"""
-    if not enabled:
-        return results
-
-    from eval.judge import apply_judge
-
-    if results and not any(str(item.get("evidence", "")).strip() for item in results):
-        print(
-            "警告：结果中没有 evidence，judge 只能基于回答评分；建议重新跑全量。",
-            file=sys.stderr,
-        )
-    apply_judge(results)
-    return results
-
-
-def build_summary(results: list[dict], *, judge_enabled: bool) -> dict:
-    summary = summarize_results(results)
-    if judge_enabled:
-        from eval.judge import summarize_judge
-
-        summary["judge"] = summarize_judge(results)
-    return summary
 
 
 def _fmt_rate(value: float | None) -> str:
@@ -226,35 +195,6 @@ def render_report(summary: dict, results: list[dict], *, cases_path: Path) -> st
         f"| 路由准确率 | {_fmt_rate(summary['route_accuracy'])} |",
         f"| P50 延迟 | {_fmt_ms(summary['latency_p50_ms'])} ms |",
         f"| P95 延迟 | {_fmt_ms(summary['latency_p95_ms'])} ms |",
-    ]
-
-    judge = summary.get("judge")
-    if judge:
-        lines += [
-            "",
-            "## Judge 评分",
-            "",
-            "| 指标 | 均值 |",
-            "| --- | --- |",
-            f"| faithfulness | {_fmt_rate(judge['faithfulness_mean'])} |",
-            f"| answer_relevance | {_fmt_rate(judge['answer_relevance_mean'])} |",
-            f"| context_precision | {_fmt_rate(judge['context_precision_mean'])} |",
-            f"| judge_error 数 | {judge['judge_error_count']} |",
-        ]
-        if judge["judge_error_ids"]:
-            lines += [
-                "",
-                "Judge 失败 ID："
-                + ", ".join(f"`{item}`" for item in judge["judge_error_ids"]),
-            ]
-        if judge["low_faithfulness_ids"]:
-            lines += [
-                "",
-                "低忠实度 ID："
-                + ", ".join(f"`{item}`" for item in judge["low_faithfulness_ids"]),
-            ]
-
-    lines += [
         "",
         "## 逐题结果",
         "",
@@ -335,11 +275,6 @@ def main() -> int:
         type=Path,
         help="用已保存的结果重新评分，不调用模型",
     )
-    parser.add_argument(
-        "--judge",
-        action="store_true",
-        help="调用 LLM-as-judge 评分（需要 API Key）",
-    )
     args = parser.parse_args()
 
     all_cases = load_cases(args.cases)
@@ -366,8 +301,7 @@ def main() -> int:
             print("没有可重新评分的用例。", file=sys.stderr)
             return 2
 
-        results = apply_judge_if_needed(results, enabled=args.judge)
-        summary = build_summary(results, judge_enabled=args.judge)
+        summary = summarize_results(results)
         write_outputs(
             results,
             summary,
@@ -401,8 +335,6 @@ def main() -> int:
             "人工复核："
             + (", ".join(case["id"] for case in cases if case["manual_review"]) or "无")
         )
-        if args.judge:
-            print("judge 在 dry-run 下跳过：未调用模型。")
         print("dry-run 通过：未调用模型。")
         return 0
 
@@ -419,8 +351,7 @@ def main() -> int:
         print(f"[{index}/{len(cases)}] {case['id']} ...", flush=True)
         results.append(run_case(agent, case))
 
-    results = apply_judge_if_needed(results, enabled=args.judge)
-    summary = build_summary(results, judge_enabled=args.judge)
+    summary = summarize_results(results)
     write_outputs(
         results,
         summary,

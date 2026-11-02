@@ -56,9 +56,5 @@
       "report-no-record",
       "negative-business-out-of-scope"
     ]
-  },
-  "faithfulness_mean": null,
-  "answer_relevance_mean": null,
-  "context_precision_mean": null,
-  "judge_error_count": 0
+  }
 }
