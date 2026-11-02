@@ -80,7 +80,7 @@ def write_calibration_csv(
                 "category": item.get("category", ""),
                 "query": item.get("query", ""),
                 "answer": item.get("answer", ""),
-                "evidence_preview": str(item.get("evidence", ""))[:300].replace("\n", " "),
+                "evidence_preview": str(item.get("evidence", ""))[:1000].replace("\n", " "),
                 "judge_reason": item.get("judge_reason", ""),
             }
             for dimension in JUDGE_DIMENSIONS:
