@@ -17,7 +17,7 @@
 - **场景化提示词**：识别“生成使用报告”后，通过中间件动态切换到报告提示词。
 - **真实流式回答**：同时消费 LangGraph 的消息流和状态流，前端展示真实 token 与工具轨迹。
 - **会话上下文**：把最近有效对话送入 Agent，并过滤 `tool`、`system` 等前端不可信角色。
-- **可评测**：提供 10 条检索用例，统计 Hit@K 和关键词覆盖率。
+- **可评测**：提供 30 条 Agent 用例（知识/订单/报告/越权/注入/负样本）和 10 条检索用例，统计路由、能力、引用、安全与延迟。
 - **可测试**：覆盖数据解析、权限、消息清洗、Agent 事件流和 Streamlit 页面冒烟。
 
 ## 架构
@@ -69,6 +69,9 @@ rag/
   vector_store.py              Chroma 索引与增量加载
 prompts/                       客服、报告、RAG 提示词
 eval/rag_cases.jsonl           检索评测集
+eval/agent_cases.jsonl         Agent 评测集（30 条）
+eval/agent_metrics.py          Agent 指标纯函数
+eval/run_agent_eval.py         Agent 评测入口
 scripts/evaluate_rag.py        检索评测脚本
 tests/                         单元测试与页面冒烟测试
 ```
@@ -126,7 +129,7 @@ Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
 python -m pytest
 ```
 
-当前测试不调用真实模型，因此没有 API Key 也能运行基础测试。
+当前 36 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
 
 ## RAG 评测
 
@@ -143,6 +146,28 @@ python scripts/evaluate_rag.py --top-k 3 --min-hit-rate 0.7
 - `details`：每条用例命中的来源和关键词，便于定位检索失败。
 
 这不是完整的答案正确率评测，但能先验证“答案需要的证据有没有被找出来”。后续应增加人工标注的答案忠实度、引用正确率、工具选择准确率和端到端任务成功率。
+
+## Agent 评测基线
+
+当前 30 条 Agent 用例（12 知识 / 5 订单 / 4 报告 / 4 越权 / 3 注入 / 2 负样本），基线如下：
+
+| 指标 | 基线 |
+| --- | --- |
+| must_include 通过率 | 0.7895 |
+| 能力匹配率 | 0.8000 |
+| 引用覆盖率 | 0.6667 |
+| 安全通过率 | 0.7273 |
+| P50 延迟 | 5997.4 ms |
+| P95 延迟 | 14885.1 ms |
+
+基线暴露了三个 P0 问题：报告流程 3/4 触发 `GraphRecursionError`；4 条知识用例未调用 RAG、2 条伪造来源；`security-other-record` 越权请求返回了当前用户报告。逐题结果见 `eval/agent_report_baseline_rescored.md`。
+
+复现：
+
+```powershell
+python -m eval.run_agent_eval --limit 5
+python -m eval.run_agent_eval --output eval/agent_results.jsonl
+```
 
 ## 关键设计
 
@@ -163,7 +188,7 @@ python scripts/evaluate_rag.py --top-k 3 --min-hit-rate 0.7
 - 演示数据来自本地 CSV，生产环境应替换为带鉴权的订单与设备服务。
 - 当前使用 Streamlit session state 保存单次会话，没有持久化多轮记忆。
 - 通义千问与 Embedding 仍通过 `langchain-community` 接入；该包已进入维护收尾阶段，生产化时应迁移到受维护的独立集成包或 OpenAI 兼容接口。
-- 检索评测只有 10 条样本，尚不足以支撑线上质量结论。
+- Agent 评测 30 条、检索评测 10 条，均为单轮自标样本，规模有限；尚无 CI 评测门禁。
 - 没有接入 LangSmith、OpenTelemetry 或统一成本统计。
 - 多用户并发下的限流、重试、熔断和密钥托管仍属于生产化阶段任务。
 
@@ -171,8 +196,5 @@ python scripts/evaluate_rag.py --top-k 3 --min-hit-rate 0.7
 
 完整的两分钟介绍、简历写法、高频追问和学习路线见：
 
-- [面试讲解指南](docs/INTERVIEW_GUIDE.md)
-- [四周学习路线](docs/LEARNING_ROADMAP.md)
-- [一周冲刺计划](docs/ONE_WEEK_PLAN.md)
-- [第 1 天工程基线教程](docs/DAY01_GUIDE.md)
-- [第 2 天身份与权限教程](docs/DAY02_GUIDE.md)
+- [五天学习与项目完善计划](docs/SPRINT5/求职冲刺5天计划.md)
+- [项目优化待办](docs/SPRINT5/优化待办.md)
