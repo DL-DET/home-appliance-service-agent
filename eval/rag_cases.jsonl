@@ -1,0 +1,10 @@
+{"id":"troubleshoot-main-brush","query":"扫地机器人主刷不转应该怎么处理？","expected_source":"故障排除.txt","expected_keywords":["主刷","异物","售后"]}
+{"id":"troubleshoot-dock","query":"机器人找不到充电座怎么办？","expected_source":"故障排除.txt","expected_keywords":["充电座","传感器","遮挡"]}
+{"id":"buy-pet-home","query":"养宠家庭选购扫拖一体机重点看什么？","expected_source":"选购指南.txt","expected_keywords":["宠物","防缠绕","吸力"]}
+{"id":"buy-small-home","query":"55平方米小户型适合什么扫地机器人？","expected_source":"选购指南.txt","expected_keywords":["小户型","导航","续航"]}
+{"id":"wood-floor-water","query":"木地板拖完有水痕怎么办？","expected_source":"扫拖一体机器人100问.txt","expected_keywords":["木地板","出水量","拖布"]}
+{"id":"battery-safety","query":"机器人电池鼓包还能继续用吗？","expected_source":"故障排除.txt","expected_keywords":["电池鼓包","断电","售后"]}
+{"id":"hepa-maintenance","query":"HEPA滤网多久清理或更换一次？","expected_source":"维护保养.txt","expected_keywords":["HEPA","滤网","清理"]}
+{"id":"map-incomplete","query":"建图不完整或者地图错乱怎么解决？","expected_source":"故障排除.txt","expected_keywords":["反光","地图","传感器"]}
+{"id":"carpet-mode","query":"地毯区域怎么开启增压和避免拖地？","expected_source":"扫拖一体机器人100问.txt","expected_keywords":["地毯","增压","拖布"]}
+{"id":"noise-check","query":"机器人工作时噪音特别大要检查哪里？","expected_source":"故障排除.txt","expected_keywords":["噪音","主刷","轮组"]}

@@ -1,0 +1,12 @@
+collection_name: agent
+embedding_model_name: text-embedding-v4
+persist_directory: rag/chroma_db
+k: 3
+data_path: data
+md5_hex_store: md5.text
+allow_knowledge_file_type: ["txt","pdf","docx"]
+
+
+chunk_size: 500
+chunk_overlap: 20
+separators:  ["\n","\n\n",".","!","?","！","？"]

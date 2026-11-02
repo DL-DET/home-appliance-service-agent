@@ -1,0 +1,3 @@
+external_data_path: data/external/records.csv
+user_profiles_path: data/external/user_profiles.csv
+orders_path: data/external/orders.csv

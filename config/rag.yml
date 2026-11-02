@@ -1,0 +1,4 @@
+chat_model_name: qwen-max
+chat_timeout_seconds: 45
+chat_max_retries: 2
+embedding_model_name: text-embedding-v4

@@ -1,0 +1,163 @@
+# 清尘智服：家电客服 Agent
+
+一个面向家电与清洁电器电商场景的智能客服项目。项目把 RAG 知识检索、订单查询、用户月度使用报告、会话记忆、权限隔离、执行轨迹和离线评测组合成一条可运行的业务链路。
+
+这个项目不是“给大模型套一个聊天框”。它重点回答三个工程问题：
+
+1. 模型什么时候应该查知识库，什么时候应该查业务系统？
+2. 多用户环境下，如何保证模型不会读到别人的订单和使用记录？
+3. 回答错了时，如何定位是检索、工具、权限还是模型生成出了问题？
+
+## 核心能力
+
+- **Agent 工具调用**：根据问题自主选择知识库、订单、用户、月份和使用记录工具。
+- **RAG 可追溯**：检索结果附带文件名或页码，提示词把资料视为不可信数据，降低文档注入风险。
+- **用户级权限隔离**：用户、城市和报告月份来自运行时上下文；订单和记录工具再次校验归属。
+- **场景化提示词**：识别“生成使用报告”后，通过中间件动态切换到报告提示词。
+- **真实流式回答**：同时消费 LangGraph 的消息流和状态流，前端展示真实 token 与工具轨迹。
+- **会话上下文**：把最近有效对话送入 Agent，并过滤 `tool`、`system` 等前端不可信角色。
+- **可评测**：提供 10 条检索用例，统计 Hit@K 和关键词覆盖率。
+- **可测试**：覆盖数据解析、权限、消息清洗、Agent 事件流和 Streamlit 页面冒烟。
+
+## 架构
+
+```mermaid
+flowchart LR
+    U[用户] --> UI[Streamlit 工作台]
+    UI --> C[运行时上下文<br/>用户 / 城市 / 月份]
+    C --> A[LangGraph ReAct Agent]
+    A --> R[知识库工具]
+    A --> O[订单工具]
+    A --> D[使用记录工具]
+    R --> V[Chroma + DashScope Embedding]
+    O --> CSV1[订单 CSV]
+    D --> CSV2[用户记录 CSV]
+    A --> M[中间件<br/>日志 / 工具监控 / 报告提示词]
+    A --> S[消息流 + 工具轨迹]
+    S --> UI
+```
+
+### 一次报告请求的链路
+
+```text
+用户选择演示用户 1001 和月份 2025-12
+→ 前端把用户、城市、月份写入 AgentContext
+→ Agent 调用 fill_context_for_report
+→ 中间件把本次请求切换为报告提示词
+→ Agent 查询 user_id 和 month
+→ fetch_external_data 校验记录归属
+→ 模型根据结构化记录生成报告
+→ 前端保存回答和执行轨迹
+```
+
+## 项目结构
+
+```text
+app.py                         Streamlit 工作台
+agent/
+  react_agent.py               Agent 构建与结构化流事件
+  context.py                   单次请求上下文
+  message_utils.py             消息清洗与多段内容转文本
+  tools/agent_tools.py         业务工具
+  tools/middleware.py          工具监控、日志、动态提示词
+services/customer_data.py      CSV 数据读取与权限校验
+rag/
+  rag_service.py               检索、总结、来源整理
+  vector_store.py              Chroma 索引与增量加载
+prompts/                       客服、报告、RAG 提示词
+eval/rag_cases.jsonl           检索评测集
+scripts/evaluate_rag.py        检索评测脚本
+tests/                         单元测试与页面冒烟测试
+```
+
+## 快速启动
+
+建议使用 Python 3.11 及以上版本，本项目在 Python 3.13.14 下验证。
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+编辑 `.env`，填写阿里云百炼/DashScope Key：
+
+```dotenv
+DASHSCOPE_API_KEY=your_real_key
+```
+
+首次运行需要构建知识库：
+
+```powershell
+python rag/vector_store.py
+```
+
+启动工作台：
+
+```powershell
+streamlit run app.py
+```
+
+浏览器打开 `http://localhost:8501`。侧边栏可以切换演示用户和月份，然后尝试：
+
+- 给我生成我的月度使用报告
+- 扫地机器人主刷不转怎么排查？
+- 养宠家庭选购扫拖一体机应该重点看什么？
+- ORD-2025-1001 这个订单到哪里了？
+
+## 测试
+
+```powershell
+python -m pytest
+```
+
+当前测试不调用真实模型，因此没有 API Key 也能运行基础测试。
+
+## RAG 评测
+
+评测前需要配置 API Key，并确保向量库已构建：
+
+```powershell
+python scripts/evaluate_rag.py --top-k 3 --min-hit-rate 0.7
+```
+
+输出包含：
+
+- `hit_rate`：Top-K 检索结果是否包含预期源文件。
+- `average_keyword_coverage`：检索片段覆盖预期关键词的比例。
+- `details`：每条用例命中的来源和关键词，便于定位检索失败。
+
+这不是完整的答案正确率评测，但能先验证“答案需要的证据有没有被找出来”。后续应增加人工标注的答案忠实度、引用正确率、工具选择准确率和端到端任务成功率。
+
+## 关键设计
+
+### 为什么不做纯工作流？
+
+订单查询、报告生成可以做成固定工作流，但知识问答的步骤数量不固定。当前采用混合策略：开放问答由 ReAct Agent 自主选择工具；报告场景通过提示词和中间件约束固定步骤。生产环境可以进一步把高风险流程拆成显式状态机。
+
+### 为什么还要做用户级校验？
+
+仅靠系统提示词说“不能查别人的数据”不安全。真正的安全边界必须在工具和数据库层：运行时上下文提供当前用户，工具执行前再次校验资源归属，越权和不存在返回同一种结果，避免通过错误信息枚举资源。
+
+### 为什么展示“执行轨迹”而不是“思维链”？
+
+执行轨迹只展示工具名、状态和结果摘要，便于调试和审计。模型内部思维链既不稳定，也可能包含敏感信息，因此不向用户展示。
+
+## 已知限制
+
+- 演示数据来自本地 CSV，生产环境应替换为带鉴权的订单与设备服务。
+- 当前使用 Streamlit session state 保存单次会话，没有持久化多轮记忆。
+- 通义千问与 Embedding 仍通过 `langchain-community` 接入；该包已进入维护收尾阶段，生产化时应迁移到受维护的独立集成包或 OpenAI 兼容接口。
+- 检索评测只有 10 条样本，尚不足以支撑线上质量结论。
+- 没有接入 LangSmith、OpenTelemetry 或统一成本统计。
+- 多用户并发下的限流、重试、熔断和密钥托管仍属于生产化阶段任务。
+
+## 面试讲解建议
+
+完整的两分钟介绍、简历写法、高频追问和学习路线见：
+
+- [面试讲解指南](docs/INTERVIEW_GUIDE.md)
+- [四周学习路线](docs/LEARNING_ROADMAP.md)
+- [一周冲刺计划](docs/ONE_WEEK_PLAN.md)
+- [第 1 天工程基线教程](docs/DAY01_GUIDE.md)

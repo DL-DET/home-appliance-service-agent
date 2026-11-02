@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+.streamlit/secrets.toml
+logs/*.log
+md5.text
+rag/chroma_db/
+eval/results/
+.DS_Store
+Thumbs.db
