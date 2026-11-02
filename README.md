@@ -12,7 +12,8 @@
 
 - **Agent 工具调用**：根据问题自主选择知识库、订单、用户、月份和使用记录工具。
 - **RAG 可追溯**：检索结果附带文件名或页码，提示词把资料视为不可信数据，降低文档注入风险。
-- **用户级权限隔离**：用户、城市和报告月份来自运行时上下文；订单和记录工具再次校验归属。
+- **可信身份边界**：支持 Streamlit OIDC 登录；本地无 OIDC 时只允许服务端固定演示用户，页面不能任意切换身份。
+- **用户级权限隔离**：用户、城市和报告月份来自可信运行时上下文；订单和记录工具再次校验归属。
 - **场景化提示词**：识别“生成使用报告”后，通过中间件动态切换到报告提示词。
 - **真实流式回答**：同时消费 LangGraph 的消息流和状态流，前端展示真实 token 与工具轨迹。
 - **会话上下文**：把最近有效对话送入 Agent，并过滤 `tool`、`system` 等前端不可信角色。
@@ -23,7 +24,8 @@
 
 ```mermaid
 flowchart LR
-    U[用户] --> UI[Streamlit 工作台]
+    U[用户] --> AUTH[OIDC 登录 / 固定演示身份]
+    AUTH --> UI[Streamlit 工作台]
     UI --> C[运行时上下文<br/>用户 / 城市 / 月份]
     C --> A[LangGraph ReAct Agent]
     A --> R[知识库工具]
@@ -40,8 +42,8 @@ flowchart LR
 ### 一次报告请求的链路
 
 ```text
-用户选择演示用户 1001 和月份 2025-12
-→ 前端把用户、城市、月份写入 AgentContext
+服务端把登录身份解析为演示用户 1001，并选择月份 2025-12
+→ 服务端把用户、城市、月份写入 AgentContext
 → Agent 调用 fill_context_for_report
 → 中间件把本次请求切换为报告提示词
 → Agent 查询 user_id 和 month
@@ -61,6 +63,7 @@ agent/
   tools/agent_tools.py         业务工具
   tools/middleware.py          工具监控、日志、动态提示词
 services/customer_data.py      CSV 数据读取与权限校验
+services/auth_service.py       登录身份到业务用户的映射
 rag/
   rag_service.py               检索、总结、来源整理
   vector_store.py              Chroma 索引与增量加载
@@ -85,6 +88,7 @@ Copy-Item .env.example .env
 
 ```dotenv
 DASHSCOPE_API_KEY=your_real_key
+DEMO_USER_ID=1001
 ```
 
 首次运行需要构建知识库：
@@ -99,12 +103,22 @@ python rag/vector_store.py
 streamlit run app.py
 ```
 
-浏览器打开 `http://localhost:8501`。侧边栏可以切换演示用户和月份，然后尝试：
+浏览器打开 `http://localhost:8501`。默认使用服务端固定的演示用户 `1001`，页面只能切换报告月份，不能伪造其他用户，然后尝试：
 
 - 给我生成我的月度使用报告
 - 扫地机器人主刷不转怎么排查？
 - 养宠家庭选购扫拖一体机应该重点看什么？
 - ORD-2025-1001 这个订单到哪里了？
+
+### 启用真实 OIDC 登录
+
+复制 OIDC 配置模板：
+
+```powershell
+Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
+```
+
+在 `.streamlit/secrets.toml` 中填写 provider 配置，并在 `config/auth.yml` 中维护“登录邮箱 → 业务用户ID”的可信映射。配置存在时应用自动进入 OIDC 模式；未配置时只允许 `DEMO_USER_ID` 指定的固定演示用户。
 
 ## 测试
 
@@ -161,3 +175,4 @@ python scripts/evaluate_rag.py --top-k 3 --min-hit-rate 0.7
 - [四周学习路线](docs/LEARNING_ROADMAP.md)
 - [一周冲刺计划](docs/ONE_WEEK_PLAN.md)
 - [第 1 天工程基线教程](docs/DAY01_GUIDE.md)
+- [第 2 天身份与权限教程](docs/DAY02_GUIDE.md)

@@ -10,13 +10,19 @@ from typing import Any
 import streamlit as st
 from dotenv import load_dotenv
 
+from services.auth_service import (
+    AuthIdentity,
+    IdentityError,
+    resolve_demo_identity,
+    resolve_oidc_identity,
+)
 from services.customer_data import (
     get_available_months,
     get_usage_record,
     get_user_profile,
-    get_user_profiles,
 )
 from ui.agent_stream import consume_agent_events
+from utils.config_handler import auth_conf
 
 
 st.set_page_config(
@@ -60,6 +66,51 @@ def _load_local_secrets() -> None:
 
 def _api_key_configured() -> bool:
     return bool(os.getenv("DASHSCOPE_API_KEY", "").strip())
+
+
+def _oidc_configured() -> bool:
+    """只有项目 secrets 中配置了 [auth] 才启用真实 OIDC 登录。"""
+    try:
+        return bool(st.secrets.get("auth"))
+    except Exception:
+        return False
+
+
+def _require_identity() -> AuthIdentity:
+    """可信登录态是业务用户ID的唯一来源。"""
+    if not _oidc_configured():
+        try:
+            return resolve_demo_identity()
+        except IdentityError as exc:
+            st.error(str(exc), icon=":material/person_off:")
+            st.stop()
+
+    if not bool(getattr(st.user, "is_logged_in", False)):
+        st.title("登录家电客服工作台", icon=":material/lock:")
+        st.caption("使用组织配置的单点登录账号访问个人订单和使用报告。")
+        if st.button(
+            "使用单点登录",
+            icon=":material/login:",
+            type="primary",
+        ):
+            provider = os.getenv("OIDC_PROVIDER", "").strip()
+            if provider:
+                st.login(provider)
+            else:
+                st.login()
+        st.stop()
+
+    email = str(getattr(st.user, "email", "") or "")
+    try:
+        return resolve_oidc_identity(
+            email,
+            auth_conf["oidc_email_to_user_id"],
+        )
+    except IdentityError as exc:
+        st.error(str(exc), icon=":material/person_off:")
+        if st.button("退出登录", icon=":material/logout:"):
+            st.logout()
+        st.stop()
 
 
 @st.cache_resource(show_spinner=False)
@@ -166,29 +217,31 @@ def _process_prompt(prompt: str, user_id: str, city: str, report_month: str) -> 
 
 
 _load_local_secrets()
+identity = _require_identity()
+profile = get_user_profile(identity.user_id)
+if profile is None:
+    st.error("登录身份没有对应的用户画像。", icon=":material/person_off:")
+    st.stop()
+
 st.session_state.setdefault("messages", [])
 st.session_state.setdefault("is_running", False)
 st.session_state.setdefault("pending_prompt", None)
 st.session_state.setdefault("suggestion_epoch", 0)
 
-profiles = get_user_profiles()
 months = get_available_months()
 
 with st.sidebar:
-    st.header("演示身份", icon=":material/person:")
-    selected_user_id = st.selectbox(
-        "演示用户",
-        options=list(profiles),
-        format_func=lambda user_id: (
-            f"{profiles[user_id].display_name} · {profiles[user_id].household}"
-        ),
-        on_change=_reset_conversation,
-        key="selected_user_id",
-    )
-    profile = get_user_profile(selected_user_id)
-    if profile is None:
-        st.error("用户画像不存在。")
-        st.stop()
+    st.header("当前身份", icon=":material/person:")
+    if identity.source == "oidc":
+        st.badge("OIDC 已登录", icon=":material/verified_user:", color="green")
+        st.markdown(f"**{identity.display_name}**")
+        st.caption(identity.email)
+        if st.button("退出登录", icon=":material/logout:"):
+            st.logout()
+    else:
+        st.badge("固定演示身份", icon=":material/science:", color="orange")
+        st.markdown(f"**{identity.display_name}**")
+        st.caption("演示用户由服务端 DEMO_USER_ID 决定，页面不能切换")
 
     selected_month = st.selectbox(
         "报告月份",
@@ -196,7 +249,7 @@ with st.sidebar:
         on_change=_reset_conversation,
         key="selected_month",
     )
-    record = get_usage_record(selected_user_id, selected_month)
+    record = get_usage_record(identity.user_id, selected_month)
 
     with st.container(border=True, gap="small"):
         st.markdown(f"**{profile.display_name}**")
@@ -226,7 +279,7 @@ with st.sidebar:
     if st.session_state.messages:
         export_text = json.dumps(
             {
-                "user_id": selected_user_id,
+                "user_id": identity.user_id,
                 "report_month": selected_month,
                 "messages": st.session_state.messages,
             },
@@ -236,7 +289,7 @@ with st.sidebar:
         st.download_button(
             "导出会话",
             data=export_text.encode("utf-8"),
-            file_name=f"conversation_{selected_user_id}_{selected_month}.json",
+            file_name=f"conversation_{identity.user_id}_{selected_month}.json",
             mime="application/json",
             icon=":material/download:",
         )
@@ -295,7 +348,7 @@ if prompt:
     else:
         _process_prompt(
             prompt,
-            user_id=selected_user_id,
+            user_id=identity.user_id,
             city=profile.city,
             report_month=selected_month,
         )

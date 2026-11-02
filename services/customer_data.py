@@ -28,6 +28,7 @@ class UserProfile:
     household: str
     area: str
     product: str
+    email: str
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ def get_user_profiles() -> dict[str, UserProfile]:
             household=row["家庭结构"],
             area=row["使用面积"],
             product=row["在用产品"],
+            email=row["邮箱"],
         )
     return profiles
 

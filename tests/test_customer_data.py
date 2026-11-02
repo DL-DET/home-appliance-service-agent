@@ -12,6 +12,7 @@ def test_profiles_cover_all_demo_users():
     profiles = get_user_profiles()
     assert len(profiles) == 10
     assert get_user_profile("1001").city == "上海"
+    assert get_user_profile("1001").email == "demo1001@example.com"
 
 
 def test_usage_data_is_loaded_with_csv_parser():
