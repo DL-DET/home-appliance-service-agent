@@ -129,7 +129,7 @@ Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
 python -m pytest
 ```
 
-当前 36 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
+当前 51 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
 
 ## RAG 评测
 
@@ -167,6 +167,21 @@ python scripts/evaluate_rag.py --top-k 3 --min-hit-rate 0.7
 ```powershell
 python -m eval.run_agent_eval --limit 5
 python -m eval.run_agent_eval --output eval/agent_results.jsonl
+```
+
+### LLM-as-judge
+
+在规则指标之外，可选用 judge 评忠实度、相关性、上下文精度：
+
+```powershell
+python -m eval.run_agent_eval --limit 20 --judge --output eval/day1_judge_results.jsonl --report eval/day1_judge_report.md
+python -m eval.calibrate_judge --init --results eval/day1_judge_results.jsonl --output eval/judge_calibration.csv
+```
+
+默认 judge 模型为 `qwen-plus`，可用 `JUDGE_MODEL_NAME` 覆盖。校准表的 `human_*` 列填 0/1 后运行：
+
+```powershell
+python -m eval.calibrate_judge --check eval/judge_calibration.csv
 ```
 
 ## 关键设计
