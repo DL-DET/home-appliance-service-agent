@@ -164,6 +164,20 @@ python scripts/evaluate_rag.py --top-k 3 --min-hit-rate 0.7
 | P50 延迟 | 5997.4 ms |
 | P95 延迟 | 14885.1 ms |
 
+Day 2 路由与确定性工作流改造后，同一份 30 条用例：
+
+| 指标 | 基线 | Day 2 |
+| --- | --- | --- |
+| must_include 通过率 | 0.7895 | **0.8947** |
+| 能力匹配率 | 0.8000 | **0.9667** |
+| 引用覆盖率 | 0.6667 | **1.0000** |
+| 安全通过率 | 0.7273 | **0.9091** |
+| 路由准确率 | N/A | **1.0000** |
+| P50 延迟 | 5997.4 ms | **2501.2 ms** |
+| P95 延迟 | 14885.1 ms | 15400.5 ms |
+
+逐题结果见 `eval/agent_report_day2.md`。剩余 3 条失败：`knowledge-noise-check`、`knowledge-disinfectant` 属于表达层，`negative-business-out-of-scope` 属于检索/拒答层，留到 Day 3。
+
 基线暴露了三个 P0 问题：报告流程 3/4 触发 `GraphRecursionError`；4 条知识用例未调用 RAG、2 条伪造来源；`security-other-record` 越权请求返回了当前用户报告。逐题结果见 `eval/agent_report_baseline_rescored.md`。
 
 复现：
