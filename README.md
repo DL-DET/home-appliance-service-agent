@@ -133,7 +133,7 @@ Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
 python -m pytest
 ```
 
-当前 37 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
+当前 66 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
 
 ## RAG 评测
 

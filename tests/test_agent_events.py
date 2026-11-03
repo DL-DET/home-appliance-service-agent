@@ -47,7 +47,8 @@ def test_stream_events_separates_tokens_and_tool_trace():
     agent.history_limit = 12
     agent.agent = FakeCompiledAgent()
 
-    events = list(agent.stream_events("怎么清理滤网"))
+    # 用 GENERAL 问题验证 ReAct 的事件解析；知识问题现在走 KnowledgeWorkflow。
+    events = list(agent.stream_events("你好"))
     assert [event.kind for event in events] == [
         "token",
         "tool_call",

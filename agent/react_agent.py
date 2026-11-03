@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
-from typing import Any, Iterator, Literal
+from typing import Any, Iterator
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 
 from agent.context import AgentContext
+from agent.events import AgentEvent, EventKind
 from agent.message_utils import content_to_text, history_to_messages
+from agent.router import Route, route_query, security_refusal
+from agent.workflows import KnowledgeWorkflow, OrderWorkflow, ReportWorkflow
 from agent.tools.agent_tools import (
     fetch_external_data,
     fill_context_for_report,
@@ -31,39 +33,48 @@ from utils.logger_handler import logger
 from utils.prompt_loader import load_system_prompts
 
 
-EventKind = Literal["token", "tool_call", "tool_result", "done"]
-
-
-@dataclass(frozen=True)
-class AgentEvent:
-    """供 UI 消费的结构化流事件。"""
-
-    kind: EventKind
-    content: str = ""
-    name: str = ""
-    call_id: str = ""
-    data: dict[str, Any] | None = None
-
-
 class ReactAgent:
-    def __init__(self, history_limit: int = 12) -> None:
+    def __init__(
+        self,
+        history_limit: int = 12,
+        *,
+        knowledge_workflow: KnowledgeWorkflow | None = None,
+        report_workflow: ReportWorkflow | None = None,
+        order_workflow: OrderWorkflow | None = None,
+    ) -> None:
         self.history_limit = history_limit
-        self.agent = create_agent(
-            model=get_chat_model(),
-            system_prompt=load_system_prompts(),
-            tools=[
-                rag_summarize,
-                get_order_status,
-                get_user_location,
-                get_user_id,
-                get_current_month,
-                fetch_external_data,
-                fill_context_for_report,
-            ],
-            middleware=[monitor_tool, log_before_model, report_prompt_switch],
-            context_schema=AgentContext,
-            name="home_appliance_service_agent",
+        self._agent: Any | None = None
+        self.knowledge_workflow = knowledge_workflow or KnowledgeWorkflow(
+            history_limit=history_limit
         )
+        self.report_workflow = report_workflow or ReportWorkflow()
+        self.order_workflow = order_workflow or OrderWorkflow()
+
+    @property
+    def agent(self) -> Any:
+        """只有 GENERAL 路径才构建 ReAct，避免无关请求依赖 API Key。"""
+        if self._agent is None:
+            self._agent = create_agent(
+                model=get_chat_model(),
+                system_prompt=load_system_prompts(),
+                tools=[
+                    rag_summarize,
+                    get_order_status,
+                    get_user_location,
+                    get_user_id,
+                    get_current_month,
+                    fetch_external_data,
+                    fill_context_for_report,
+                ],
+                middleware=[monitor_tool, log_before_model, report_prompt_switch],
+                context_schema=AgentContext,
+                name="home_appliance_service_agent",
+            )
+        return self._agent
+
+    @agent.setter
+    def agent(self, value: Any) -> None:
+        self._agent = value
 
     def _build_messages(
         self,
@@ -92,6 +103,39 @@ class ReactAgent:
         run_context.setdefault("report_month", "")
         # 每次新问题都从普通客服场景开始，防止上一轮报告状态泄漏到这一轮。
         run_context["report"] = False
+
+        # 安全前置：越权、提示词泄露在进入业务工具之前拒绝。
+        refusal = security_refusal(query, str(run_context.get("user_id", "")))
+        if refusal:
+            yield AgentEvent(kind="token", content=refusal)
+            yield AgentEvent(
+                kind="done",
+                data={"route": "security", "tool_calls": 0},
+            )
+            return
+
+        route = route_query(query)
+        if route == Route.REPORT:
+            yield from self.report_workflow.stream(
+                query,
+                history=history,
+                context=run_context,
+            )
+            return
+        if route == Route.ORDER:
+            yield from self.order_workflow.stream(
+                query,
+                history=history,
+                context=run_context,
+            )
+            return
+        if route == Route.KNOWLEDGE:
+            yield from self.knowledge_workflow.stream(
+                query,
+                history=history,
+                context=run_context,
+            )
+            return
 
         input_dict = {"messages": self._build_messages(query, history)}
         seen_tool_calls: set[str] = set()
@@ -157,7 +201,7 @@ class ReactAgent:
 
             yield AgentEvent(
                 kind="done",
-                data={"tool_calls": len(seen_tool_calls)},
+                data={"route": "general", "tool_calls": len(seen_tool_calls)},
             )
         except Exception:
             logger.exception("[agent]执行失败 query_preview=%s", query[:80])

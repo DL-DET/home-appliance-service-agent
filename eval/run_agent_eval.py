@@ -124,6 +124,7 @@ def run_case(agent: Any, case: dict) -> dict:
     answer_parts: list[str] = []
     tool_names: list[str] = []
     tool_results: list[Any] = []
+    actual_route: str | None = None
     error = ""
 
     try:
@@ -137,6 +138,8 @@ def run_case(agent: Any, case: dict) -> dict:
                 tool_names.append(event.name)
             elif event.kind == "tool_result":
                 tool_results.append(event)
+            elif event.kind == "done":
+                actual_route = (event.data or {}).get("route")
     except Exception as exc:  # 单条失败要记录，不能让整批评测中断
         error = f"{type(exc).__name__}: {exc}"
 
@@ -151,8 +154,7 @@ def run_case(agent: Any, case: dict) -> dict:
         tool_names=tool_names,
         sources=parse_sources(tool_results),
         latency_ms=latency_ms,
-        # 路由 Day 2 才上线；今天不伪造 route_accuracy。
-        actual_route=None,
+        actual_route=actual_route,
     )
     result["error"] = error
     return result

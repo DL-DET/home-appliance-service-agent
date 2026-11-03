@@ -1,3 +1,5 @@
 external_data_path: data/external/records.csv
 user_profiles_path: data/external/user_profiles.csv
 orders_path: data/external/orders.csv
+# 单次请求内允许的工具调用尝试次数，超过后由中间件直接返回错误提示。
+max_tool_calls: 6

@@ -11,7 +11,7 @@ from services.customer_data import get_user_profile
 
 CASES_PATH = Path(__file__).resolve().parents[1] / "eval" / "agent_cases.jsonl"
 
-ROUTES = {"knowledge", "order", "report", "general"}
+ROUTES = {"knowledge", "order", "report", "general", "security"}
 CAPABILITIES = {"rag", "order", "report", "none"}
 CATEGORY_COUNTS = {
     "knowledge": 12,
