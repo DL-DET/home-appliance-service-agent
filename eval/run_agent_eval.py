@@ -174,13 +174,22 @@ def _flag(value: bool | None) -> str:
     return "✅" if value else "❌"
 
 
+def _display_path(path: Path | str) -> str:
+    """报告里只展示项目内相对路径，避免公开仓库泄露本地目录。"""
+    path = Path(path)
+    try:
+        return path.resolve().relative_to(Path(_PROJECT_ROOT)).as_posix()
+    except ValueError:
+        return path.name
+
+
 def render_report(summary: dict, results: list[dict], *, cases_path: Path) -> str:
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [
         "# Agent 评测报告",
         "",
         f"> 生成时间：{generated_at}",
-        f"> 评测集：`{cases_path}`",
+        f"> 评测集：`{_display_path(cases_path)}`",
         f"> 用例数：{summary['case_count']}",
         "",
         "## 汇总",

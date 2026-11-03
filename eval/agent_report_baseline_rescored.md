@@ -1,7 +1,7 @@
 # Agent 评测报告
 
 > 生成时间：2026-11-02 20:18:32
-> 评测集：`D:\python\agent智能体\eval\agent_cases.jsonl`
+> 评测集：`eval/agent_cases.jsonl`
 > 用例数：30
 
 ## 汇总
