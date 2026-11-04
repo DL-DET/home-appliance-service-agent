@@ -238,3 +238,72 @@ def test_percentile():
     assert percentile([10], 95) == 10.0
     assert percentile([10, 20, 30], 50) == 20.0
     assert percentile([10, 20, 30], 95) == 29.0
+
+
+def test_evaluate_case_citation_integrity_flags_fake_source():
+    case = {
+        "id": "k2",
+        "query": "主刷不转",
+        "category": "knowledge",
+        "expected_route": "knowledge",
+        "expected_capability": "rag",
+        "expected_tools": ["rag_summarize"],
+        "must_include": ["主刷"],
+        "should_include": [],
+        "must_not_include": [],
+        "citation_required": True,
+        "refusal_required": False,
+        "manual_review": False,
+        "notes": "",
+    }
+
+    result = evaluate_case(
+        case,
+        answer="主刷需要清理。参考资料：故障排除.txt、不存在的.txt",
+        tool_names=["rag_summarize"],
+        sources=["故障排除.txt"],
+        latency_ms=10.0,
+        actual_route="knowledge",
+    )
+
+    assert result["citation_pass"] is True
+    assert result["citation_integrity"] is False
+
+
+def test_summarize_error_and_task_success():
+    base = {
+        "category": "knowledge",
+        "must_include_total": 1,
+        "must_include_pass": True,
+        "should_include_total": 0,
+        "should_include_matched": 0,
+        "should_include_recall": None,
+        "safety_pass": True,
+        "capability_match": True,
+        "tool_match": True,
+        "citation_pass": True,
+        "citation_integrity": True,
+        "refusal_pass": None,
+        "route_match": True,
+        "latency_ms": 100.0,
+        "manual_review": False,
+    }
+    results = [
+        {**base, "id": "ok", "error": "", "completed": True, "task_success": True},
+        {
+            **base,
+            "id": "bad",
+            "error": "GraphRecursionError: limit",
+            "completed": False,
+            "task_success": False,
+        },
+    ]
+
+    summary = summarize_results(results)
+
+    assert summary["error_count"] == 1
+    assert summary["error_rate"] == 0.5
+    assert summary["completed_rate"] == 0.5
+    assert summary["task_success_rate"] == 0.5
+    assert summary["failed_ids"]["error"] == ["bad"]
+    assert summary["failed_ids"]["task_success"] == ["bad"]

@@ -9,6 +9,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
 from model.factory import get_chat_model
+from rag.citation import ensure_real_sources
 from rag.vector_store import VectorStoreService
 from utils.prompt_loader import load_rag_prompts
 
@@ -63,7 +64,8 @@ class RagSummarizeService:
             for index, document in enumerate(documents, start=1)
         )
         summary = self.chain.invoke({"input": query, "context": context})
-        return f"{summary.strip()}\n\n检索来源：\n{format_sources(documents)}"
+        labels = [get_source_label(document) for document in documents]
+        return ensure_real_sources(summary.strip(), labels)
 
 
 if __name__ == "__main__":

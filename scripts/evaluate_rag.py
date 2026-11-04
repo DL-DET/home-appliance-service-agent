@@ -1,4 +1,4 @@
-"""检索层离线评测：统计 Hit@K 和关键词覆盖率。"""
+"""检索层离线评测：对比纯向量和混合检索的 Hit@K、MRR 和关键词覆盖率。"""
 
 from __future__ import annotations
 
@@ -22,17 +22,15 @@ def load_cases(path: Path) -> list[dict]:
         return [json.loads(line) for line in file if line.strip()]
 
 
-def evaluate(cases: list[dict], top_k: int) -> dict:
-    service = VectorStoreService()
-    retriever = service.vector_store.as_retriever(search_kwargs={"k": top_k})
+def evaluate_with_retriever(retriever, cases: list[dict], top_k: int) -> dict:
     details: list[dict] = []
 
     for case in cases:
         documents = retriever.invoke(case["query"])
-        sources = {
+        sources = [
             Path(str(document.metadata.get("source", ""))).name
             for document in documents
-        }
+        ]
         combined_text = "\n".join(document.page_content for document in documents)
         matched_keywords = [
             keyword
@@ -41,12 +39,20 @@ def evaluate(cases: list[dict], top_k: int) -> dict:
         ]
         keyword_coverage = len(matched_keywords) / len(case["expected_keywords"])
 
+        hit_rank = 0
+        for rank, source in enumerate(sources, start=1):
+            if source == case["expected_source"]:
+                hit_rank = rank
+                break
+
         details.append(
             {
                 "id": case["id"],
                 "query": case["query"],
-                "hit": case["expected_source"] in sources,
-                "sources": sorted(sources),
+                "hit": hit_rank > 0,
+                "hit_rank": hit_rank or None,
+                "mrr": round(1 / hit_rank, 4) if hit_rank else 0.0,
+                "sources": sorted(set(sources)),
                 "keyword_coverage": round(keyword_coverage, 4),
                 "matched_keywords": matched_keywords,
             }
@@ -59,12 +65,29 @@ def evaluate(cases: list[dict], top_k: int) -> dict:
             sum(item["hit"] for item in details) / max(len(details), 1),
             4,
         ),
+        "mrr": round(
+            sum(item["mrr"] for item in details) / max(len(details), 1),
+            4,
+        ),
         "average_keyword_coverage": round(
-            sum(item["keyword_coverage"] for item in details) / max(len(details), 1),
+            sum(item["keyword_coverage"] for item in details)
+            / max(len(details), 1),
             4,
         ),
         "details": details,
     }
+
+
+def evaluate(cases: list[dict], top_k: int, mode: str) -> dict:
+    service = VectorStoreService()
+    if mode == "vector":
+        retriever = service.get_vector_retriever(top_k)
+    else:
+        retriever = service.get_retriever(top_k)
+
+    result = evaluate_with_retriever(retriever, cases, top_k)
+    result["mode"] = mode
+    return result
 
 
 def main() -> int:
@@ -76,10 +99,38 @@ def main() -> int:
     )
     parser.add_argument("--top-k", type=int, default=3)
     parser.add_argument("--min-hit-rate", type=float, default=0.7)
+    parser.add_argument(
+        "--mode",
+        choices=("vector", "hybrid", "compare"),
+        default="hybrid",
+        help="vector=纯向量，hybrid=混合检索，compare=同时跑两者",
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
-    result = evaluate(load_cases(args.cases), top_k=args.top_k)
+    cases = load_cases(args.cases)
+    if args.mode == "compare":
+        vector = evaluate(cases, args.top_k, "vector")
+        hybrid = evaluate(cases, args.top_k, "hybrid")
+        result = {
+            "top_k": args.top_k,
+            "case_count": len(cases),
+            "vector": vector,
+            "hybrid": hybrid,
+            "delta_hit_rate": round(
+                hybrid["hit_rate"] - vector["hit_rate"], 4
+            ),
+            "delta_keyword_coverage": round(
+                hybrid["average_keyword_coverage"]
+                - vector["average_keyword_coverage"],
+                4,
+            ),
+        }
+        gate = hybrid
+    else:
+        result = evaluate(cases, args.top_k, args.mode)
+        gate = result
+
     rendered = json.dumps(result, ensure_ascii=False, indent=2)
     print(rendered)
 
@@ -87,7 +138,7 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(rendered + "\n", encoding="utf-8")
 
-    return 0 if result["hit_rate"] >= args.min_hit_rate else 1
+    return 0 if gate["hit_rate"] >= args.min_hit_rate else 1
 
 
 if __name__ == "__main__":

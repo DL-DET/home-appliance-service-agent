@@ -17,7 +17,8 @@ from agent.events import AgentEvent
 from agent.message_utils import content_to_text, history_to_messages
 from agent.router import extract_order_id
 from model.factory import get_chat_model
-from rag.rag_service import format_sources, get_source_label
+from rag.citation import citation_integrity, ensure_real_sources
+from rag.rag_service import get_source_label
 from rag.vector_store import VectorStoreService
 from services.customer_data import (
     OrderRecord,
@@ -28,6 +29,7 @@ from services.customer_data import (
     get_usage_record,
     get_user_profile,
 )
+from utils.logger_handler import logger
 from utils.prompt_loader import load_report_prompts, load_system_prompts
 
 
@@ -114,6 +116,7 @@ class KnowledgeWorkflow:
             + evidence
             + "\n\n本轮已由系统完成检索，不要再次调用 rag_summarize；"
             "只基于以上资料回答，保留安全提示，不要编造资料中没有的参数或步骤。"
+            "如果资料中列出了多个检查点、部件或禁用项，回答要逐项覆盖，不要只写其中一个。"
             "不要自行输出“参考资料”小节，来源由系统统一追加。"
         )
         messages = [
@@ -127,21 +130,21 @@ class KnowledgeWorkflow:
             text = content_to_text(getattr(chunk, "content", chunk))
             if text:
                 answer_parts.append(text)
-                yield AgentEvent(kind="token", content=text)
 
         answer = "".join(answer_parts).strip()
-        source_names = [label.split("（")[0] for label in sources]
         if not answer:
             yield AgentEvent(
                 kind="token",
                 content="检索到资料，但模型没有生成有效回答。",
             )
-        elif not any(name in answer for name in source_names):
-            # 模型没有写来源时，由代码补全，避免伪造引用。
-            yield AgentEvent(
-                kind="token",
-                content=f"\n\n参考资料：\n{format_sources(documents)}",
-            )
+        else:
+            is_valid, fake = citation_integrity(answer, sources)
+            if not is_valid:
+                logger.warning("[knowledge]引用不在白名单，已重写: %s", fake)
+            # 知识回答先缓冲再输出，避免假引用先流到前端。
+            cleaned = ensure_real_sources(answer, sources)
+            for start in range(0, len(cleaned), 80):
+                yield AgentEvent(kind="token", content=cleaned[start : start + 80])
 
         yield _done("knowledge", 1)
 

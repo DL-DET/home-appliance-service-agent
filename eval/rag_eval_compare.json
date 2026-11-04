@@ -1,0 +1,368 @@
+{
+  "top_k": 3,
+  "case_count": 10,
+  "vector": {
+    "top_k": 3,
+    "case_count": 10,
+    "hit_rate": 0.9,
+    "mrr": 0.75,
+    "average_keyword_coverage": 0.8333,
+    "details": [
+      {
+        "id": "troubleshoot-main-brush",
+        "query": "扫地机器人主刷不转应该怎么处理？",
+        "hit": true,
+        "hit_rank": 1,
+        "mrr": 1.0,
+        "sources": [
+          "故障排除.txt"
+        ],
+        "keyword_coverage": 0.6667,
+        "matched_keywords": [
+          "主刷",
+          "售后"
+        ]
+      },
+      {
+        "id": "troubleshoot-dock",
+        "query": "机器人找不到充电座怎么办？",
+        "hit": true,
+        "hit_rank": 1,
+        "mrr": 1.0,
+        "sources": [
+          "故障排除.txt",
+          "新建 文本文档.pdf",
+          "电商用户100问.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "充电座",
+          "传感器",
+          "遮挡"
+        ]
+      },
+      {
+        "id": "buy-pet-home",
+        "query": "养宠家庭选购扫拖一体机重点看什么？",
+        "hit": true,
+        "hit_rank": 1,
+        "mrr": 1.0,
+        "sources": [
+          "新建 文本文档.pdf",
+          "选购指南.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "宠物",
+          "防缠绕",
+          "吸力"
+        ]
+      },
+      {
+        "id": "buy-small-home",
+        "query": "55平方米小户型适合什么扫地机器人？",
+        "hit": true,
+        "hit_rank": 1,
+        "mrr": 1.0,
+        "sources": [
+          "选购指南.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "小户型",
+          "导航",
+          "续航"
+        ]
+      },
+      {
+        "id": "wood-floor-water",
+        "query": "木地板拖完有水痕怎么办？",
+        "hit": true,
+        "hit_rank": 2,
+        "mrr": 0.5,
+        "sources": [
+          "扫拖一体机器人100问.txt",
+          "新建 文本文档.pdf"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "木地板",
+          "出水量",
+          "拖布"
+        ]
+      },
+      {
+        "id": "battery-safety",
+        "query": "机器人电池鼓包还能继续用吗？",
+        "hit": false,
+        "hit_rank": null,
+        "mrr": 0.0,
+        "sources": [
+          "电商用户100问.txt",
+          "维护保养.txt"
+        ],
+        "keyword_coverage": 0.3333,
+        "matched_keywords": [
+          "售后"
+        ]
+      },
+      {
+        "id": "hepa-maintenance",
+        "query": "HEPA滤网多久清理或更换一次？",
+        "hit": true,
+        "hit_rank": 2,
+        "mrr": 0.5,
+        "sources": [
+          "新建 文本文档.pdf",
+          "电商用户100问.txt",
+          "维护保养.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "HEPA",
+          "滤网",
+          "清理"
+        ]
+      },
+      {
+        "id": "map-incomplete",
+        "query": "建图不完整或者地图错乱怎么解决？",
+        "hit": true,
+        "hit_rank": 2,
+        "mrr": 0.5,
+        "sources": [
+          "故障排除.txt",
+          "新建 文本文档.pdf"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "反光",
+          "地图",
+          "传感器"
+        ]
+      },
+      {
+        "id": "carpet-mode",
+        "query": "地毯区域怎么开启增压和避免拖地？",
+        "hit": true,
+        "hit_rank": 1,
+        "mrr": 1.0,
+        "sources": [
+          "扫拖一体机器人100问.txt",
+          "新建 文本文档.pdf"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "地毯",
+          "增压",
+          "拖布"
+        ]
+      },
+      {
+        "id": "noise-check",
+        "query": "机器人工作时噪音特别大要检查哪里？",
+        "hit": true,
+        "hit_rank": 1,
+        "mrr": 1.0,
+        "sources": [
+          "故障排除.txt"
+        ],
+        "keyword_coverage": 0.3333,
+        "matched_keywords": [
+          "主刷"
+        ]
+      }
+    ],
+    "mode": "vector"
+  },
+  "hybrid": {
+    "top_k": 3,
+    "case_count": 10,
+    "hit_rate": 1.0,
+    "mrr": 0.6667,
+    "average_keyword_coverage": 0.9333,
+    "details": [
+      {
+        "id": "troubleshoot-main-brush",
+        "query": "扫地机器人主刷不转应该怎么处理？",
+        "hit": true,
+        "hit_rank": 1,
+        "mrr": 1.0,
+        "sources": [
+          "故障排除.txt",
+          "电商用户100问.txt",
+          "维护保养.txt"
+        ],
+        "keyword_coverage": 0.6667,
+        "matched_keywords": [
+          "主刷",
+          "售后"
+        ]
+      },
+      {
+        "id": "troubleshoot-dock",
+        "query": "机器人找不到充电座怎么办？",
+        "hit": true,
+        "hit_rank": 1,
+        "mrr": 1.0,
+        "sources": [
+          "故障排除.txt",
+          "新建 文本文档.pdf",
+          "电商用户100问.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "充电座",
+          "传感器",
+          "遮挡"
+        ]
+      },
+      {
+        "id": "buy-pet-home",
+        "query": "养宠家庭选购扫拖一体机重点看什么？",
+        "hit": true,
+        "hit_rank": 2,
+        "mrr": 0.5,
+        "sources": [
+          "扫拖一体机器人100问.txt",
+          "新建 文本文档.pdf",
+          "选购指南.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "宠物",
+          "防缠绕",
+          "吸力"
+        ]
+      },
+      {
+        "id": "buy-small-home",
+        "query": "55平方米小户型适合什么扫地机器人？",
+        "hit": true,
+        "hit_rank": 1,
+        "mrr": 1.0,
+        "sources": [
+          "新建 文本文档.pdf",
+          "电商用户100问.txt",
+          "选购指南.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "小户型",
+          "导航",
+          "续航"
+        ]
+      },
+      {
+        "id": "wood-floor-water",
+        "query": "木地板拖完有水痕怎么办？",
+        "hit": true,
+        "hit_rank": 2,
+        "mrr": 0.5,
+        "sources": [
+          "扫拖一体机器人100问.txt",
+          "新建 文本文档.pdf",
+          "电商用户100问.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "木地板",
+          "出水量",
+          "拖布"
+        ]
+      },
+      {
+        "id": "battery-safety",
+        "query": "机器人电池鼓包还能继续用吗？",
+        "hit": true,
+        "hit_rank": 2,
+        "mrr": 0.5,
+        "sources": [
+          "故障排除.txt",
+          "电商用户100问.txt",
+          "维护保养.txt"
+        ],
+        "keyword_coverage": 0.6667,
+        "matched_keywords": [
+          "断电",
+          "售后"
+        ]
+      },
+      {
+        "id": "hepa-maintenance",
+        "query": "HEPA滤网多久清理或更换一次？",
+        "hit": true,
+        "hit_rank": 2,
+        "mrr": 0.5,
+        "sources": [
+          "新建 文本文档.pdf",
+          "电商用户100问.txt",
+          "维护保养.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "HEPA",
+          "滤网",
+          "清理"
+        ]
+      },
+      {
+        "id": "map-incomplete",
+        "query": "建图不完整或者地图错乱怎么解决？",
+        "hit": true,
+        "hit_rank": 3,
+        "mrr": 0.3333,
+        "sources": [
+          "故障排除.txt",
+          "新建 文本文档.pdf",
+          "电商用户100问.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "反光",
+          "地图",
+          "传感器"
+        ]
+      },
+      {
+        "id": "carpet-mode",
+        "query": "地毯区域怎么开启增压和避免拖地？",
+        "hit": true,
+        "hit_rank": 3,
+        "mrr": 0.3333,
+        "sources": [
+          "扫拖一体机器人100问.txt",
+          "新建 文本文档.pdf",
+          "电商用户100问.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "地毯",
+          "增压",
+          "拖布"
+        ]
+      },
+      {
+        "id": "noise-check",
+        "query": "机器人工作时噪音特别大要检查哪里？",
+        "hit": true,
+        "hit_rank": 1,
+        "mrr": 1.0,
+        "sources": [
+          "故障排除.txt",
+          "电商用户100问.txt",
+          "维护保养.txt"
+        ],
+        "keyword_coverage": 1.0,
+        "matched_keywords": [
+          "噪音",
+          "主刷",
+          "轮组"
+        ]
+      }
+    ],
+    "mode": "hybrid"
+  },
+  "delta_hit_rate": 0.1,
+  "delta_keyword_coverage": 0.1
+}

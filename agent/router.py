@@ -62,6 +62,13 @@ SECURITY_REFUSAL = (
     "我只能查询当前登录账号的数据，也不能提供系统提示词、密钥或内部配置。"
 )
 
+# 价格、活动、补贴类政策必须以后台数据为准，知识库没有依据时不能让模型凭记忆回答。
+POLICY_KEYWORDS = ("以旧换新", "折价", "抵扣", "补贴", "回收")
+POLICY_REFUSAL = (
+    "知识库暂未收录该活动或政策信息，无法确认。"
+    "请以官方活动页或人工客服的最新说明为准。"
+)
+
 
 class Route(str, Enum):
     REPORT = "report"
@@ -122,6 +129,16 @@ def _is_report_query(text: str) -> bool:
     return any(keyword in text for keyword in REPORT_KEYWORDS) or (
         "生成" in text and "报告" in text
     )
+
+
+def policy_refusal(query: str) -> str | None:
+    """活动/价格政策没有可信数据时直接拒答，避免模型编造。"""
+    text = (query or "").strip()
+    if not text:
+        return None
+    if any(keyword in text for keyword in POLICY_KEYWORDS):
+        return POLICY_REFUSAL
+    return None
 
 
 def route_query(query: str) -> Route:

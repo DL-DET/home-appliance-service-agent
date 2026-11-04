@@ -64,7 +64,7 @@ def rescore_results(
             latency_ms=float(item.get("latency_ms", 0.0)),
             actual_route=item.get("actual_route"),
         )
-        result["error"] = item.get("error", "")
+        _attach_completion(result, str(item.get("error", "")))
         rescored.append(result)
 
     return rescored, missing
@@ -156,7 +156,34 @@ def run_case(agent: Any, case: dict) -> dict:
         latency_ms=latency_ms,
         actual_route=actual_route,
     )
+    return _attach_completion(result, error)
+
+
+def _attach_completion(result: dict, error: str) -> dict:
+    """统一计算错误、完成和任务成功，在线评测和离线重评共用。"""
     result["error"] = error
+    result["completed"] = not bool(error)
+    result["task_success"] = (
+        result["completed"]
+        and result["capability_match"]
+        and result["tool_match"]
+        and result["safety_pass"]
+        and (
+            result["must_include_pass"]
+            if result["must_include_total"]
+            else True
+        )
+        and (
+            result["citation_pass"]
+            if result["citation_pass"] is not None
+            else True
+        )
+        and (
+            result["citation_integrity"]
+            if result["citation_integrity"] is not None
+            else True
+        )
+    )
     return result
 
 
@@ -202,15 +229,19 @@ def render_report(summary: dict, results: list[dict], *, cases_path: Path) -> st
         f"| 工具匹配率 | {_fmt_rate(summary['tool_match_rate'])} |",
         f"| 安全通过率 | {_fmt_rate(summary['safety_pass_rate'])} |",
         f"| 引用覆盖率 | {_fmt_rate(summary['citation_coverage'])} |",
+        f"| 引用完整性 | {_fmt_rate(summary.get('citation_integrity_rate'))} |",
         f"| 拒答通过率 | {_fmt_rate(summary['refusal_pass_rate'])} |",
         f"| 路由准确率 | {_fmt_rate(summary['route_accuracy'])} |",
+        f"| 错误率 | {_fmt_rate(summary.get('error_rate'))} |",
+        f"| 完成率 | {_fmt_rate(summary.get('completed_rate'))} |",
+        f"| 任务成功率 | {_fmt_rate(summary.get('task_success_rate'))} |",
         f"| P50 延迟 | {_fmt_ms(summary['latency_p50_ms'])} ms |",
         f"| P95 延迟 | {_fmt_ms(summary['latency_p95_ms'])} ms |",
         "",
         "## 逐题结果",
         "",
-        "| ID | 类别 | 能力 | 工具 | must | should | safety | citation | 延迟(ms) | 人工复核 |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| ID | 类别 | 能力 | 工具 | must | should | safety | citation | integrity | 延迟(ms) | 人工复核 |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
 
     for item in results:
@@ -225,6 +256,7 @@ def render_report(summary: dict, results: list[dict], *, cases_path: Path) -> st
             f"{_flag(item['capability_match'])} | {tools} | "
             f"{_flag(item['must_include_pass'])} | {should} | "
             f"{_flag(item['safety_pass'])} | {_flag(item['citation_pass'])} | "
+            f"{_flag(item.get('citation_integrity'))} | "
             f"{item['latency_ms']:.1f} | {_flag(item['manual_review'])} |"
         )
 

@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from agent.context import AgentContext
 from agent.events import AgentEvent, EventKind
 from agent.message_utils import content_to_text, history_to_messages
-from agent.router import Route, route_query, security_refusal
+from agent.router import Route, policy_refusal, route_query, security_refusal
 from agent.workflows import KnowledgeWorkflow, OrderWorkflow, ReportWorkflow
 from agent.tools.agent_tools import (
     fetch_external_data,
@@ -111,6 +111,15 @@ class ReactAgent:
             yield AgentEvent(
                 kind="done",
                 data={"route": "security", "tool_calls": 0},
+            )
+            return
+
+        policy = policy_refusal(query)
+        if policy:
+            yield AgentEvent(kind="token", content=policy)
+            yield AgentEvent(
+                kind="done",
+                data={"route": "policy", "tool_calls": 0},
             )
             return
 

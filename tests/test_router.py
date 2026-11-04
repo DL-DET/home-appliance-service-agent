@@ -3,6 +3,7 @@
 from agent.router import (
     Route,
     extract_order_id,
+    policy_refusal,
     route_query,
     security_refusal,
 )
@@ -75,3 +76,13 @@ def test_security_blocks_prompt_leak_and_role_play():
 def test_security_allows_own_data():
     assert security_refusal("生成我的月度使用报告", "1001") is None
     assert security_refusal("1001 的订单到哪了", "1001") is None
+
+
+def test_policy_refusal_blocks_trade_in():
+    refusal = policy_refusal("你们支持以旧换新吗？")
+    assert refusal is not None
+    assert "无法确认" in refusal
+
+
+def test_policy_refusal_allows_normal_knowledge():
+    assert policy_refusal("滤网多久换一次？") is None

@@ -109,6 +109,24 @@ def test_order_id_bypasses_security_and_uses_order_workflow():
     assert order.calls == 1
 
 
+def test_policy_query_refuses_before_tools():
+    agent, knowledge, report, order = _agent()
+
+    events = list(
+        agent.stream_events(
+            "你们支持以旧换新吗？",
+            context={"user_id": "1001"},
+        )
+    )
+
+    assert [event.kind for event in events] == ["token", "done"]
+    assert "无法确认" in events[0].content
+    assert events[-1].data["route"] == "policy"
+    assert knowledge.calls == 0
+    assert report.calls == 0
+    assert order.calls == 0
+
+
 def test_mixed_intent_falls_back_to_react():
     agent, knowledge, report, order = _agent()
     agent.agent = FakeCompiledAgent()

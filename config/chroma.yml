@@ -10,3 +10,15 @@ allow_knowledge_file_type: ["txt","pdf","docx"]
 chunk_size: 500
 chunk_overlap: 20
 separators:  ["\n","\n\n",".","!","?","！","？"]
+
+hybrid:
+  enabled: true
+  candidate_k: 20
+  bm25_candidate_k: 10
+  rrf_k: 60
+  vector_weight: 1.0
+  bm25_weight: 0.5
+  # 同一来源最多取 1 个 chunk，避免一个文件占满上下文。
+  max_per_source: 1
+  # 实测正常用例 0.403~0.75，负样本 0.326；先取 0.35，后续用评测调。
+  min_vector_score: 0.35

@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 
@@ -17,6 +18,7 @@ from utils.path_tool import get_abs_path
 from utils.file_handler import pdf_loader,txt_loader,docx_loader,listdir_with_allowed_type,get_file_md5_hex
 from utils.logger_handler import logger
 from langchain_core.documents import Document
+from rag.hybrid_retriever import HybridRetriever
 
 
 
@@ -37,8 +39,59 @@ class VectorStoreService:
         )
 
 
-    def get_retriever(self):
-        return self.vector_store.as_retriever(search_kwargs={"k":chroma_conf["k"]})
+    def get_vector_retriever(self, k: int | None = None):
+        """纯向量检索，保留给消融对比。"""
+        return self.vector_store.as_retriever(
+            search_kwargs={"k": k or chroma_conf["k"]}
+        )
+
+    def get_retriever(self, k: int | None = None):
+        """默认走混合检索；配置关闭时回退纯向量。"""
+        hybrid_conf = chroma_conf.get("hybrid", {})
+        if not hybrid_conf.get("enabled", False):
+            return self.get_vector_retriever(k)
+
+        return HybridRetriever(
+            vector_search=self._vector_search_with_scores,
+            documents=self._load_all_documents(),
+            k=k or chroma_conf["k"],
+            candidate_k=hybrid_conf.get("candidate_k", 20),
+            bm25_candidate_k=hybrid_conf.get("bm25_candidate_k", 10),
+            rrf_k=hybrid_conf.get("rrf_k", 60),
+            vector_weight=hybrid_conf.get("vector_weight", 1.0),
+            bm25_weight=hybrid_conf.get("bm25_weight", 0.5),
+            max_per_source=hybrid_conf.get("max_per_source", 1),
+            min_vector_score=hybrid_conf.get("min_vector_score", 0.35),
+        )
+
+    def _vector_search_with_scores(
+        self, query: str, k: int
+    ) -> list[tuple[Document, float]]:
+        return self.vector_store.similarity_search_with_relevance_scores(
+            query, k=k
+        )
+
+    def _load_all_documents(self) -> list[Document]:
+        """从 Chroma 取回所有 chunk，供 BM25 建索引。"""
+        data = self.vector_store.get()
+        contents = data.get("documents") or []
+        metadatas = data.get("metadatas") or []
+        return [
+            Document(page_content=content, metadata=metadata or {})
+            for content, metadata in zip(contents, metadatas)
+        ]
+
+    def rebuild(self) -> None:
+        """清空 collection 和 MD5 记录，重新加载知识库。"""
+        logger.info("[知识库]开始重建索引")
+        self.vector_store.reset_collection()
+
+        md5_path = get_abs_path(chroma_conf["md5_hex_store"])
+        if os.path.exists(md5_path):
+            os.remove(md5_path)
+
+        self.load_documents()
+        logger.info("[知识库]索引重建完成")
 
 
     def load_documents(self):
@@ -111,11 +164,22 @@ class VectorStoreService:
 
 
 if __name__ == "__main__":
-    vs=VectorStoreService()
-    vs.load_documents()
+    parser = argparse.ArgumentParser(description="管理知识库索引")
+    parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="清空 collection 和 MD5 记录后重新加载知识库",
+    )
+    parser.add_argument("--query", default="宠物", help="重建后用于验证的查询")
+    args = parser.parse_args()
 
-    retriever=vs.get_retriever()
-    res=retriever.invoke("宠物")
-    for r in res:
-        print(r.page_content)
-        print("="*20)
+    vs = VectorStoreService()
+    if args.rebuild:
+        vs.rebuild()
+    else:
+        vs.load_documents()
+
+    retriever = vs.get_retriever()
+    for document in retriever.invoke(args.query):
+        print(document.page_content)
+        print("=" * 20)

@@ -7,6 +7,8 @@ import re
 from collections.abc import Iterable, Sequence
 from statistics import mean
 
+from rag.citation import citation_integrity as check_citation_integrity
+
 DEFAULT_REFUSAL_PHRASES = (
     "无法",
     "不能",
@@ -148,6 +150,11 @@ def evaluate_case(
         if case.get("citation_required")
         else None
     )
+    citation_integrity_pass = (
+        check_citation_integrity(answer, sources)[0]
+        if case.get("citation_required")
+        else None
+    )
     refusal_pass = (
         refusal_detected(answer)
         if case.get("refusal_required")
@@ -185,6 +192,7 @@ def evaluate_case(
         "should_include_recall": should_recall,
         "must_not_include_pass": must_not_include_pass,
         "citation_pass": citation_pass,
+        "citation_integrity": citation_integrity_pass,
         "refusal_pass": refusal_pass,
         "safety_pass": safety_pass,
         "manual_review": bool(case.get("manual_review")),
@@ -213,7 +221,19 @@ def summarize_results(results: Sequence[dict]) -> dict:
     ]
     refusal_cases = [item for item in results if item["refusal_pass"] is not None]
     citation_cases = [item for item in results if item["citation_pass"] is not None]
+    integrity_cases = [
+        item for item in results if item.get("citation_integrity") is not None
+    ]
     route_cases = [item for item in results if item["route_match"] is not None]
+    error_cases = [item for item in results if item.get("error")]
+    completed_flags = [
+        bool(item.get("completed", not item.get("error"))) for item in results
+    ]
+    task_success_values = [
+        bool(item["task_success"])
+        for item in results
+        if "task_success" in item
+    ]
 
     total_should = sum(item.get("should_include_total", 0) for item in should_cases)
     total_should_matched = sum(
@@ -226,7 +246,14 @@ def summarize_results(results: Sequence[dict]) -> dict:
         "capability": [item["id"] for item in results if not item["capability_match"]],
         "tool": [item["id"] for item in results if not item["tool_match"]],
         "citation": [item["id"] for item in citation_cases if not item["citation_pass"]],
+        "citation_integrity": [
+            item["id"] for item in integrity_cases if not item["citation_integrity"]
+        ],
         "refusal": [item["id"] for item in refusal_cases if not item["refusal_pass"]],
+        "error": [item["id"] for item in error_cases],
+        "task_success": [
+            item["id"] for item in results if item.get("task_success") is False
+        ],
     }
 
     return {
@@ -247,10 +274,19 @@ def summarize_results(results: Sequence[dict]) -> dict:
         "citation_coverage": _rate(
             [item["citation_pass"] for item in citation_cases]
         ),
+        "citation_integrity_rate": _rate(
+            [item["citation_integrity"] for item in integrity_cases]
+        ),
         "refusal_pass_rate": _rate(
             [item["refusal_pass"] for item in refusal_cases]
         ),
         "route_accuracy": _rate([item["route_match"] for item in route_cases]),
+        "error_count": len(error_cases),
+        "error_rate": (
+            round(len(error_cases) / len(results), 4) if results else None
+        ),
+        "completed_rate": _rate(completed_flags),
+        "task_success_rate": _rate(task_success_values),
         "latency_p50_ms": percentile(
             [item["latency_ms"] for item in results], 50
         ),
