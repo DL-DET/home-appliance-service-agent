@@ -64,6 +64,12 @@ SECURITY_REFUSAL = (
 
 # 价格、活动、补贴类政策必须以后台数据为准，知识库没有依据时不能让模型凭记忆回答。
 POLICY_KEYWORDS = ("以旧换新", "折价", "抵扣", "补贴", "回收")
+# 同义表达：能抵多少钱、抵钱、折抵、抵价、能抵吗。
+POLICY_PATTERNS = (
+    re.compile("|".join(re.escape(keyword) for keyword in POLICY_KEYWORDS)),
+    re.compile(r"抵(?:多少钱|多少|钱|价|吗)"),
+    re.compile(r"折抵"),
+)
 POLICY_REFUSAL = (
     "知识库暂未收录该活动或政策信息，无法确认。"
     "请以官方活动页或人工客服的最新说明为准。"
@@ -136,7 +142,7 @@ def policy_refusal(query: str) -> str | None:
     text = (query or "").strip()
     if not text:
         return None
-    if any(keyword in text for keyword in POLICY_KEYWORDS):
+    if any(pattern.search(text) for pattern in POLICY_PATTERNS):
         return POLICY_REFUSAL
     return None
 

@@ -127,6 +127,24 @@ def test_policy_query_refuses_before_tools():
     assert order.calls == 0
 
 
+def test_policy_synonym_refuses_before_tools():
+    agent, knowledge, report, order = _agent()
+
+    events = list(
+        agent.stream_events(
+            "旧机器能抵多少钱？",
+            context={"user_id": "1001"},
+        )
+    )
+
+    assert [event.kind for event in events] == ["token", "done"]
+    assert "无法确认" in events[0].content
+    assert events[-1].data["route"] == "policy"
+    assert knowledge.calls == 0
+    assert report.calls == 0
+    assert order.calls == 0
+
+
 def test_mixed_intent_falls_back_to_react():
     agent, knowledge, report, order = _agent()
     agent.agent = FakeCompiledAgent()

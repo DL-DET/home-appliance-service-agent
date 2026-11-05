@@ -158,7 +158,7 @@ docker compose down
 
 ## 2 分钟演示
 
-完整脚本见 [docs/DEMO.md](docs/DEMO.md)。
+完整脚本见 [docs/DEMO.md](docs/DEMO.md)，本地录屏见 `docs/demo.webm`（约 50 秒）。
 
 演示四条主线：
 
@@ -190,7 +190,7 @@ Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
 python -m pytest
 ```
 
-当前 125 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
+当前 128 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
 
 ## RAG 评测
 

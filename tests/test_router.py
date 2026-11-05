@@ -84,5 +84,17 @@ def test_policy_refusal_blocks_trade_in():
     assert "无法确认" in refusal
 
 
-def test_policy_refusal_allows_normal_knowledge():
+def test_policy_refusal_blocks_synonyms():
+    for query in (
+        "旧机器能抵多少钱？",
+        "旧机器能抵多少？",
+        "能抵钱吗？",
+        "可以折抵吗？",
+        "旧机抵价怎么算？",
+    ):
+        assert policy_refusal(query) is not None
+
+
+def test_policy_refusal_does_not_block_normal_knowledge():
     assert policy_refusal("滤网多久换一次？") is None
+    assert policy_refusal("这个电机能抵抗多大负载？") is None

@@ -86,6 +86,30 @@ def test_bm25_can_keep_exact_match_with_low_vector_score():
     assert [item.metadata["source"] for item in result] == ["a.txt"]
 
 
+def test_max_per_source_two_can_keep_same_file_chunks():
+    docs = [
+        make_doc("a.txt", "主刷 轮组 噪音 一"),
+        make_doc("a.txt", "主刷 轮组 噪音 二"),
+        make_doc("b.txt", "主刷 边刷 电机"),
+    ]
+
+    def vector_search(_query: str, _k: int):
+        return [(doc, 0.8 - index * 0.05) for index, doc in enumerate(docs)]
+
+    retriever = HybridRetriever(
+        vector_search=vector_search,
+        documents=docs,
+        k=3,
+        candidate_k=3,
+        min_vector_score=0.0,
+        max_per_source=2,
+    )
+
+    result = retriever.invoke("主刷")
+    assert len(result) == 3
+    assert sum(1 for item in result if item.metadata["source"] == "a.txt") == 2
+
+
 def test_source_diversity_prefers_different_files():
     docs = [
         make_doc("a.txt", "主刷 轮组 噪音 一"),
