@@ -1,6 +1,7 @@
 streamlit[auth]==1.64.0
 langchain==1.4.4
 langchain-community==0.4.2
+langchain-openai==1.7.4
 langchain-chroma==1.1.0
 langchain-text-splitters==1.1.3
 langgraph==1.2.14

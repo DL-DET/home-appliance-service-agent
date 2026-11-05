@@ -24,6 +24,8 @@ from services.customer_data import (
 )
 from ui.agent_stream import consume_agent_events
 from utils.config_handler import auth_conf
+from utils.logger_handler import logger
+from utils.tracing import new_request_id
 
 
 st.set_page_config(
@@ -159,6 +161,7 @@ def _render_trace(trace: list[dict[str, Any]]) -> None:
 def _process_prompt(prompt: str, user_id: str, city: str, report_month: str) -> None:
     st.session_state.is_running = True
     prior_history = list(st.session_state.messages)
+    request_id = new_request_id()
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     try:
@@ -180,6 +183,7 @@ def _process_prompt(prompt: str, user_id: str, city: str, report_month: str) -> 
                             "user_id": user_id,
                             "city": city,
                             "report_month": report_month,
+                            "request_id": request_id,
                         },
                     )
                     answer = consume_agent_events(
@@ -193,12 +197,14 @@ def _process_prompt(prompt: str, user_id: str, city: str, report_month: str) -> 
                         ),
                         shorten=_shorten,
                     )
-                except Exception as exc:
+                except Exception:
+                    logger.exception("[ui]Agent 执行失败 request_id=%s", request_id)
                     status.update(label="执行失败", state="error")
                     answer = "本次请求没有成功完成，请稍后重试。"
                     answer_slot.error(
-                        "Agent 执行失败。请检查 DASHSCOPE_API_KEY、网络连接和日志后再试。"
-                        f"\n\n错误摘要：{_shorten(str(exc), 180)}",
+                        "Agent 执行失败。请稍后重试。"
+                        f"\n\n请求编号：{request_id}"
+                        "\n\n请把请求编号发给管理员，便于在日志中定位。",
                         icon=":material/error:",
                     )
 

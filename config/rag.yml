@@ -1,4 +1,6 @@
-chat_model_name: qwen-max
+chat_model_name: qwen3.7-plus
+# qwen3.7-plus 只在 DashScope 的 OpenAI 兼容端点提供，原生 ChatTongyi 会返回 400。
+chat_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 chat_timeout_seconds: 45
 chat_max_retries: 2
 embedding_model_name: text-embedding-v4

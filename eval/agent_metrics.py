@@ -234,6 +234,18 @@ def summarize_results(results: Sequence[dict]) -> dict:
         for item in results
         if "task_success" in item
     ]
+    token_cases = [
+        item for item in results if item.get("total_tokens") is not None
+    ]
+    input_tokens_total = sum(
+        int(item.get("input_tokens") or 0) for item in token_cases
+    )
+    output_tokens_total = sum(
+        int(item.get("output_tokens") or 0) for item in token_cases
+    )
+    total_tokens_total = sum(
+        int(item.get("total_tokens") or 0) for item in token_cases
+    )
 
     total_should = sum(item.get("should_include_total", 0) for item in should_cases)
     total_should_matched = sum(
@@ -296,6 +308,20 @@ def summarize_results(results: Sequence[dict]) -> dict:
         "average_latency_ms": (
             round(mean(item["latency_ms"] for item in results), 1)
             if results
+            else None
+        ),
+        "input_tokens_total": (
+            input_tokens_total if token_cases else None
+        ),
+        "output_tokens_total": (
+            output_tokens_total if token_cases else None
+        ),
+        "total_tokens_total": (
+            total_tokens_total if token_cases else None
+        ),
+        "average_total_tokens": (
+            round(total_tokens_total / len(token_cases), 1)
+            if token_cases
             else None
         ),
         "manual_review_ids": [

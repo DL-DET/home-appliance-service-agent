@@ -11,6 +11,12 @@ from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from agent.context import AgentContext
 from agent.events import AgentEvent, EventKind
 from agent.message_utils import content_to_text, history_to_messages
+from agent.model_runtime import (
+    DEFAULT_MODEL_FIRST_TOKEN_TIMEOUT_SECONDS,
+    DEFAULT_MODEL_TOTAL_TIMEOUT_SECONDS,
+    record_usage,
+    stream_with_deadline,
+)
 from agent.router import Route, policy_refusal, route_query, security_refusal
 from agent.workflows import KnowledgeWorkflow, OrderWorkflow, ReportWorkflow
 from agent.tools.agent_tools import (
@@ -31,6 +37,7 @@ from model.factory import get_chat_model
 from services.customer_data import get_user_profile
 from utils.logger_handler import logger
 from utils.prompt_loader import load_system_prompts
+from utils.tracing import Trace, safe_preview
 
 
 class ReactAgent:
@@ -94,8 +101,8 @@ class ReactAgent:
     ) -> Iterator[AgentEvent]:
         """同时流式输出最终答案 token 和工具执行轨迹。
 
-        `messages` 通道负责 LLM token；`updates` 通道负责模型请求的工具调用
-        以及工具返回结果。二者合并后，前端不用解析 Agent 内部状态。
+        外层统一负责 request_id / trace / 异常日志，内层只做业务分发；
+        这样安全、政策、工作流和 ReAct 四条路径都能留下同一份请求摘要。
         """
         run_context: AgentContext = dict(context or {})
         run_context.setdefault("user_id", "")
@@ -104,26 +111,68 @@ class ReactAgent:
         # 每次新问题都从普通客服场景开始，防止上一轮报告状态泄漏到这一轮。
         run_context["report"] = False
 
+        trace = run_context.get("trace")
+        if trace is None:
+            trace = Trace(str(run_context.get("request_id") or ""))
+            run_context["trace"] = trace
+        run_context["request_id"] = trace.request_id
+
+        try:
+            yield from self._stream_events(query, history, run_context)
+        except Exception as exc:
+            trace.mark_error(type(exc).__name__)
+            logger.exception(
+                "[agent]执行失败 request_id=%s query_preview=%s",
+                trace.request_id,
+                safe_preview(query),
+            )
+            raise
+        finally:
+            trace.finish(
+                route=str(run_context.get("route", "unknown")),
+                tool_calls=int(trace.attributes.get("tool_calls", 0)),
+                model_calls=int(trace.attributes.get("model_calls", 0)),
+            )
+
+    def _stream_events(
+        self,
+        query: str,
+        history: list[dict[str, Any]] | None,
+        run_context: AgentContext,
+    ) -> Iterator[AgentEvent]:
+        """实际的安全检查、路由和分发逻辑。"""
+        trace = run_context["trace"]
+
         # 安全前置：越权、提示词泄露在进入业务工具之前拒绝。
         refusal = security_refusal(query, str(run_context.get("user_id", "")))
         if refusal:
-            yield AgentEvent(kind="token", content=refusal)
-            yield AgentEvent(
-                kind="done",
-                data={"route": "security", "tool_calls": 0},
-            )
+            run_context["route"] = "security"
+            with trace.span("security") as span:
+                span.attributes["refused"] = True
+                yield AgentEvent(kind="token", content=refusal)
+                yield AgentEvent(
+                    kind="done",
+                    data={"route": "security", "tool_calls": 0},
+                )
             return
 
         policy = policy_refusal(query)
         if policy:
-            yield AgentEvent(kind="token", content=policy)
-            yield AgentEvent(
-                kind="done",
-                data={"route": "policy", "tool_calls": 0},
-            )
+            run_context["route"] = "policy"
+            with trace.span("policy") as span:
+                span.attributes["refused"] = True
+                yield AgentEvent(kind="token", content=policy)
+                yield AgentEvent(
+                    kind="done",
+                    data={"route": "policy", "tool_calls": 0},
+                )
             return
 
-        route = route_query(query)
+        with trace.span("route") as span:
+            route = route_query(query)
+            span.attributes["route"] = route.value
+        run_context["route"] = route.value
+
         if route == Route.REPORT:
             yield from self.report_workflow.stream(
                 query,
@@ -146,75 +195,77 @@ class ReactAgent:
             )
             return
 
+        run_context["route"] = "general"
         input_dict = {"messages": self._build_messages(query, history)}
         seen_tool_calls: set[str] = set()
         answer_parts: list[str] = []
         fallback_answer = ""
 
-        try:
-            for mode, payload in self.agent.stream(
+        for mode, payload in stream_with_deadline(
+            self.agent.stream(
                 input_dict,
                 config={"recursion_limit": 10},
                 stream_mode=["messages", "updates"],
                 context=run_context,
-            ):
-                if mode == "messages":
-                    chunk, _metadata = payload
-                    if isinstance(chunk, AIMessageChunk):
-                        text = content_to_text(chunk.content)
-                        if text:
-                            answer_parts.append(text)
-                            yield AgentEvent(kind="token", content=text)
+            ),
+            total_timeout_seconds=DEFAULT_MODEL_TOTAL_TIMEOUT_SECONDS,
+            first_token_timeout_seconds=DEFAULT_MODEL_FIRST_TOKEN_TIMEOUT_SECONDS,
+        ):
+            if mode == "messages":
+                chunk, _metadata = payload
+                if isinstance(chunk, AIMessageChunk):
+                    record_usage(run_context, chunk)
+                    text = content_to_text(chunk.content)
+                    if text:
+                        answer_parts.append(text)
+                        yield AgentEvent(kind="token", content=text)
+                continue
+
+            if mode != "updates" or not isinstance(payload, dict):
+                continue
+
+            for update in payload.values():
+                if not isinstance(update, dict):
                     continue
-
-                if mode != "updates" or not isinstance(payload, dict):
-                    continue
-
-                for update in payload.values():
-                    if not isinstance(update, dict):
-                        continue
-                    for message in update.get("messages", []):
-                        if isinstance(message, AIMessage) and message.tool_calls:
-                            for tool_call in message.tool_calls:
-                                call_id = str(tool_call.get("id") or "")
-                                if call_id and call_id in seen_tool_calls:
-                                    continue
-                                if call_id:
-                                    seen_tool_calls.add(call_id)
-                                yield AgentEvent(
-                                    kind="tool_call",
-                                    name=str(tool_call.get("name") or ""),
-                                    call_id=call_id,
-                                    data={"args": tool_call.get("args", {})},
-                                )
-
-                        if isinstance(message, ToolMessage):
+                for message in update.get("messages", []):
+                    if isinstance(message, AIMessage) and message.tool_calls:
+                        for tool_call in message.tool_calls:
+                            call_id = str(tool_call.get("id") or "")
+                            if call_id and call_id in seen_tool_calls:
+                                continue
+                            if call_id:
+                                seen_tool_calls.add(call_id)
                             yield AgentEvent(
-                                kind="tool_result",
-                                name=str(message.name or ""),
-                                call_id=str(message.tool_call_id or ""),
-                                content=content_to_text(message.content),
-                                data={"status": message.status},
+                                kind="tool_call",
+                                name=str(tool_call.get("name") or ""),
+                                call_id=call_id,
+                                data={"args": tool_call.get("args", {})},
                             )
 
-                        if (
-                            isinstance(message, AIMessage)
-                            and not message.tool_calls
-                            and content_to_text(message.content).strip()
-                        ):
-                            # 某些兼容模型可能不逐 token 输出，这里保留整段兜底。
-                            fallback_answer = content_to_text(message.content).strip()
+                    if isinstance(message, ToolMessage):
+                        yield AgentEvent(
+                            kind="tool_result",
+                            name=str(message.name or ""),
+                            call_id=str(message.tool_call_id or ""),
+                            content=content_to_text(message.content),
+                            data={"status": message.status},
+                        )
 
-            if not answer_parts and fallback_answer:
-                yield AgentEvent(kind="token", content=fallback_answer)
+                    if (
+                        isinstance(message, AIMessage)
+                        and not message.tool_calls
+                        and content_to_text(message.content).strip()
+                    ):
+                        # 某些兼容模型可能不逐 token 输出，这里保留整段兜底。
+                        fallback_answer = content_to_text(message.content).strip()
 
-            yield AgentEvent(
-                kind="done",
-                data={"route": "general", "tool_calls": len(seen_tool_calls)},
-            )
-        except Exception:
-            logger.exception("[agent]执行失败 query_preview=%s", query[:80])
-            raise
+        if not answer_parts and fallback_answer:
+            yield AgentEvent(kind="token", content=fallback_answer)
+
+        yield AgentEvent(
+            kind="done",
+            data={"route": "general", "tool_calls": len(seen_tool_calls)},
+        )
 
     def execute_stream(
         self,

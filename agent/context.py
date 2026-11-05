@@ -1,6 +1,6 @@
 """Agent 单次运行使用的上下文定义。"""
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 
 class AgentContext(TypedDict, total=False):
@@ -11,6 +11,9 @@ class AgentContext(TypedDict, total=False):
     report_month: str
     # 只有报告场景的中间件会把它改成 True，用于动态切换系统提示词。
     report: bool
+    # trace 只属于本次请求，用于记录阶段耗时和错误，不跨请求复用。
+    request_id: str
+    trace: Any
     # 工具预算与缓存只属于本次请求，请求结束即销毁，不会跨会话泄漏。
     max_tool_calls: int
     tool_calls: int

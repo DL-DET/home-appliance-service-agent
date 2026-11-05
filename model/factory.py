@@ -15,9 +15,9 @@ if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
 from langchain_community.embeddings import DashScopeEmbeddings
-from langchain_community.chat_models.tongyi import ChatTongyi
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
+from langchain_openai import ChatOpenAI
 from utils.config_handler import rag_conf
 
 
@@ -48,12 +48,16 @@ class BaseModelFactory(ABC):
 
 class ChatModelFactory(BaseModelFactory):
     def generator(self) -> Optional[BaseChatModel]:
-        return ChatTongyi(
+        # qwen3.7-plus 只走 DashScope 的 OpenAI 兼容端点；
+        # 原生 ChatTongyi 端点会返回 400 InvalidParameter。
+        return ChatOpenAI(
             model=rag_conf["chat_model_name"],
+            base_url=rag_conf["chat_base_url"],
+            api_key=os.getenv("DASHSCOPE_API_KEY", ""),
+            timeout=float(rag_conf["chat_timeout_seconds"]),
             max_retries=int(rag_conf["chat_max_retries"]),
-            # DashScope 的 timeout 是流式请求两次数据之间的空闲超时。
-            # 不设置时，服务端长时间不返回 token 会让页面无限等待。
-            model_kwargs={"timeout": int(rag_conf["chat_timeout_seconds"])},
+            streaming=True,
+            stream_usage=True,
         )
 
 class EmbeddingModelFactory(BaseModelFactory):

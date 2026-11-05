@@ -3,3 +3,12 @@ user_profiles_path: data/external/user_profiles.csv
 orders_path: data/external/orders.csv
 # 单次请求内允许的工具调用尝试次数，超过后由中间件直接返回错误提示。
 max_tool_calls: 6
+# 工具韧性：超时、有限重试和熔断。
+tool_timeout_seconds: 30
+tool_max_retries: 2
+tool_retry_backoff_ms: 200
+circuit_failure_threshold: 3
+circuit_cooldown_seconds: 30
+# 模型调用预算：总耗时和首 token；ChatTongyi/OpenAI 客户端自身的 timeout 仍保留。
+model_total_timeout_seconds: 60
+model_first_token_timeout_seconds: 30

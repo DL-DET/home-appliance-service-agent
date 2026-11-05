@@ -5,6 +5,7 @@ __pycache__/
 .env
 .streamlit/secrets.toml
 logs/*.log
+logs/*.jsonl
 md5.text
 rag/chroma_db/
 eval/results/

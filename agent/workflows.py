@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+from contextlib import nullcontext
 from typing import Any
 
 from langchain_core.documents import Document
@@ -15,6 +16,12 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from agent.context import AgentContext
 from agent.events import AgentEvent
 from agent.message_utils import content_to_text, history_to_messages
+from agent.model_runtime import (
+    DEFAULT_MODEL_FIRST_TOKEN_TIMEOUT_SECONDS,
+    DEFAULT_MODEL_TOTAL_TIMEOUT_SECONDS,
+    record_usage,
+    stream_with_deadline,
+)
 from agent.router import extract_order_id
 from model.factory import get_chat_model
 from rag.citation import citation_integrity, ensure_real_sources
@@ -38,6 +45,20 @@ def _done(route: str, tool_calls: int) -> AgentEvent:
         kind="done",
         data={"route": route, "tool_calls": tool_calls},
     )
+
+
+def _span(context: AgentContext | None, name: str, **attributes: Any):
+    """有 trace 时记录阶段；单元测试没有 trace 时保持无操作。"""
+    trace = (context or {}).get("trace")
+    if trace is None:
+        return nullcontext()
+    return trace.span(name, **attributes)
+
+
+def _increment(context: AgentContext | None, key: str) -> None:
+    trace = (context or {}).get("trace")
+    if trace is not None:
+        trace.increment(key)
 
 
 class KnowledgeWorkflow:
@@ -76,7 +97,13 @@ class KnowledgeWorkflow:
         history: list[dict[str, Any]] | None = None,
         context: AgentContext | None = None,
     ) -> Iterator[AgentEvent]:
-        documents = list(self._get_retriever().invoke(query))
+        with _span(context, "knowledge.retrieve") as span:
+            documents = list(self._get_retriever().invoke(query))
+            if span is not None:
+                span.attributes["docs_count"] = len(documents)
+                if not documents:
+                    span.status = "empty"
+        _increment(context, "tool_calls")
         yield AgentEvent(
             kind="tool_call",
             name="rag_summarize",
@@ -126,10 +153,21 @@ class KnowledgeWorkflow:
         ]
 
         answer_parts: list[str] = []
-        for chunk in self._get_model().stream(messages):
-            text = content_to_text(getattr(chunk, "content", chunk))
-            if text:
-                answer_parts.append(text)
+        with _span(context, "knowledge.model") as span:
+            _increment(context, "model_calls")
+            for chunk in stream_with_deadline(
+                self._get_model().stream(messages),
+                total_timeout_seconds=DEFAULT_MODEL_TOTAL_TIMEOUT_SECONDS,
+                first_token_timeout_seconds=(
+                    DEFAULT_MODEL_FIRST_TOKEN_TIMEOUT_SECONDS
+                ),
+            ):
+                record_usage(context, chunk)
+                text = content_to_text(getattr(chunk, "content", chunk))
+                if text:
+                    answer_parts.append(text)
+            if span is not None:
+                span.attributes["answer_chars"] = len("".join(answer_parts))
 
         answer = "".join(answer_parts).strip()
         if not answer:
@@ -138,9 +176,15 @@ class KnowledgeWorkflow:
                 content="检索到资料，但模型没有生成有效回答。",
             )
         else:
-            is_valid, fake = citation_integrity(answer, sources)
-            if not is_valid:
-                logger.warning("[knowledge]引用不在白名单，已重写: %s", fake)
+            with _span(context, "knowledge.citation") as span:
+                is_valid, fake = citation_integrity(answer, sources)
+                if span is not None:
+                    span.attributes["integrity"] = is_valid
+                    span.attributes["fake_count"] = len(fake)
+                    if not is_valid:
+                        span.status = "warning"
+                if not is_valid:
+                    logger.warning("[knowledge]引用不在白名单，已重写: %s", fake)
             # 知识回答先缓冲再输出，避免假引用先流到前端。
             cleaned = ensure_real_sources(answer, sources)
             for start in range(0, len(cleaned), 80):
@@ -194,7 +238,16 @@ class ReportWorkflow:
             data={"args": {"user_id": user_id, "month": month}},
         )
 
-        profile = self._get_profile(user_id)
+        with _span(run_context, "report.lookup") as span:
+            profile = self._get_profile(user_id)
+            record = self._get_record(user_id, month) if profile is not None else None
+            if span is not None:
+                span.attributes["profile_found"] = profile is not None
+                span.attributes["record_found"] = record is not None
+                if profile is None or record is None:
+                    span.status = "empty"
+        _increment(run_context, "tool_calls")
+
         if profile is None:
             yield AgentEvent(
                 kind="tool_result",
@@ -206,7 +259,6 @@ class ReportWorkflow:
             yield _done("report", 1)
             return
 
-        record = self._get_record(user_id, month)
         if record is None:
             yield AgentEvent(
                 kind="tool_result",
@@ -241,11 +293,22 @@ class ReportWorkflow:
         ]
 
         answer_parts: list[str] = []
-        for chunk in self._get_model().stream(messages):
-            text = content_to_text(getattr(chunk, "content", chunk))
-            if text:
-                answer_parts.append(text)
-                yield AgentEvent(kind="token", content=text)
+        with _span(run_context, "report.model") as span:
+            _increment(run_context, "model_calls")
+            for chunk in stream_with_deadline(
+                self._get_model().stream(messages),
+                total_timeout_seconds=DEFAULT_MODEL_TOTAL_TIMEOUT_SECONDS,
+                first_token_timeout_seconds=(
+                    DEFAULT_MODEL_FIRST_TOKEN_TIMEOUT_SECONDS
+                ),
+            ):
+                record_usage(run_context, chunk)
+                text = content_to_text(getattr(chunk, "content", chunk))
+                if text:
+                    answer_parts.append(text)
+                    yield AgentEvent(kind="token", content=text)
+            if span is not None:
+                span.attributes["answer_chars"] = len("".join(answer_parts))
 
         if not answer_parts:
             yield AgentEvent(
@@ -290,7 +353,14 @@ class OrderWorkflow:
             name="get_order_status",
             data={"args": {"order_id": order_id}},
         )
-        order = self._get_order(order_id, user_id)
+        with _span(run_context, "order.lookup") as span:
+            order = self._get_order(order_id, user_id)
+            if span is not None:
+                span.attributes["found"] = order is not None
+                if order is None:
+                    span.status = "empty"
+        _increment(run_context, "tool_calls")
+
         if order is None:
             yield AgentEvent(
                 kind="tool_result",

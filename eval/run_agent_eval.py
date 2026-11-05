@@ -17,6 +17,7 @@ if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
 from eval.agent_metrics import evaluate_case, summarize_results
+from utils.tracing import Trace
 
 CASES_PATH = Path(_PROJECT_ROOT) / "eval" / "agent_cases.jsonl"
 RESULTS_PATH = Path(_PROJECT_ROOT) / "eval" / "agent_results.jsonl"
@@ -126,11 +127,14 @@ def run_case(agent: Any, case: dict) -> dict:
     tool_results: list[Any] = []
     actual_route: str | None = None
     error = ""
+    trace = Trace()
+    context = context_for(case)
+    context["trace"] = trace
 
     try:
         for event in agent.stream_events(
             case["query"],
-            context=context_for(case),
+            context=context,
         ):
             if event.kind == "token":
                 answer_parts.append(event.content)
@@ -156,7 +160,11 @@ def run_case(agent: Any, case: dict) -> dict:
         latency_ms=latency_ms,
         actual_route=actual_route,
     )
-    return _attach_completion(result, error)
+    result = _attach_completion(result, error)
+    result["input_tokens"] = trace.attributes.get("input_tokens")
+    result["output_tokens"] = trace.attributes.get("output_tokens")
+    result["total_tokens"] = trace.attributes.get("total_tokens")
+    return result
 
 
 def _attach_completion(result: dict, error: str) -> dict:
@@ -193,6 +201,10 @@ def _fmt_rate(value: float | None) -> str:
 
 def _fmt_ms(value: float | None) -> str:
     return "N/A" if value is None else f"{value:.1f}"
+
+
+def _fmt_int(value: int | None) -> str:
+    return "N/A" if value is None else f"{int(value)}"
 
 
 def _flag(value: bool | None) -> str:
@@ -235,6 +247,10 @@ def render_report(summary: dict, results: list[dict], *, cases_path: Path) -> st
         f"| 错误率 | {_fmt_rate(summary.get('error_rate'))} |",
         f"| 完成率 | {_fmt_rate(summary.get('completed_rate'))} |",
         f"| 任务成功率 | {_fmt_rate(summary.get('task_success_rate'))} |",
+        f"| 输入 tokens | {_fmt_int(summary.get('input_tokens_total'))} |",
+        f"| 输出 tokens | {_fmt_int(summary.get('output_tokens_total'))} |",
+        f"| 总 tokens | {_fmt_int(summary.get('total_tokens_total'))} |",
+        f"| 平均总 tokens | {_fmt_ms(summary.get('average_total_tokens'))} |",
         f"| P50 延迟 | {_fmt_ms(summary['latency_p50_ms'])} ms |",
         f"| P95 延迟 | {_fmt_ms(summary['latency_p95_ms'])} ms |",
         "",
