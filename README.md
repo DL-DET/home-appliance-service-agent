@@ -117,6 +117,63 @@ streamlit run app.py
 - 养宠家庭选购扫拖一体机应该重点看什么？
 - ORD-2025-1001 这个订单到哪里了？
 
+### Docker 启动
+
+前置条件：
+
+- 项目根目录有 `.env`，其中包含 `DASHSCOPE_API_KEY`
+- 本地已构建知识库 `rag/chroma_db`；如果没有，先运行 `python rag/vector_store.py`
+
+一条命令启动：
+
+```powershell
+docker compose up --build
+```
+
+浏览器打开 `http://localhost:8501`。健康检查：
+
+```powershell
+curl http://localhost:8501/_stcore/health
+# ok
+```
+
+查看容器状态：
+
+```powershell
+docker compose ps
+```
+
+停止：
+
+```powershell
+docker compose down
+```
+
+说明：
+
+- 镜像以非 root 用户运行
+- API Key 通过 `.env` 注入，不写入镜像
+- `.dockerignore` 排除了 `.env`、日志、评测产物、测试和文档
+- 首次构建需要安装依赖，约 4–5 分钟
+
+## 2 分钟演示
+
+完整脚本见 [docs/DEMO.md](docs/DEMO.md)。
+
+演示四条主线：
+
+1. 知识问答：检索 + 引用 + 安全提示
+2. 订单查询：0 模型调用，模板化返回
+3. 越权请求：安全前置拒绝，0 业务工具
+4. 月度报告：代码读记录 + 校验归属 + 一次模型生成
+
+演示前先确认：
+
+```powershell
+docker compose ps
+curl http://localhost:8501/_stcore/health
+```
+
 ### 启用真实 OIDC 登录
 
 复制 OIDC 配置模板：
@@ -133,7 +190,7 @@ Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
 python -m pytest
 ```
 
-当前 119 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
+当前 125 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
 
 ## RAG 评测
 
