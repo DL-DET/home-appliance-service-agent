@@ -190,7 +190,7 @@ Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
 python -m pytest
 ```
 
-当前 128 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
+当前 130 个测试通过，不调用真实模型，因此没有 API Key 也能运行基础测试。
 
 ## RAG 评测
 
@@ -278,6 +278,18 @@ Day 4 增加 request_id / span / JSONL trace、工具重试与熔断、模型总
 Day 4 的 30 条共消耗 **40,568 tokens**（输入 22,375 / 输出 18,193；仅 16 条调用模型），按当前模型目录价估算约 **¥0.19 / 30 条**。质量硬指标未退步，但知识和报告延迟上升；报告最长 43.4 秒。订单、安全和政策路径仍是毫秒级。
 
 不能把延迟变化归因于 trace 或熔断代码。
+
+补充评测不并入 30 条主基线，避免历史指标不可比：
+
+```text
+eval/agent_cases_extra.jsonl
+```
+
+- `knowledge-maintenance-parts`：多部件维护，检查 `主刷 / 滤网 / 尘盒` 是否逐项覆盖
+- `order-missing-id`：缺订单号时是否追问，不编造物流状态
+- `negative-policy-synonym`：`旧机器能抵多少钱` 是否在工具调用前拒答
+
+3 条补充用例结果：must / should / safety / citation / integrity / route / task_success 全部 1.0；共 3,399 tokens。逐题结果见 `eval/agent_report_extra.md`。
 
 基线暴露了三个 P0 问题：报告流程 3/4 触发 `GraphRecursionError`；4 条知识用例未调用 RAG、2 条伪造来源；`security-other-record` 越权请求返回了当前用户报告。逐题结果见 `eval/agent_report_baseline_rescored.md`。
 
