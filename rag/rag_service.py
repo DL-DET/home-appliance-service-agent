@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -11,13 +9,14 @@ from langchain_core.prompts import PromptTemplate
 from model.factory import get_chat_model
 from rag.citation import ensure_real_sources
 from rag.vector_store import VectorStoreService
+from utils.path_tool import get_basename
 from utils.prompt_loader import load_rag_prompts
 
 
 def get_source_label(document: Document) -> str:
     """从加载器元数据中提取适合展示给用户的来源名称。"""
     source = str(document.metadata.get("source", "")).strip()
-    label = Path(source).name if source else "未知来源"
+    label = get_basename(source) if source else "未知来源"
     page = document.metadata.get("page")
     if page is not None:
         return f"{label}（第{int(page) + 1}页）"

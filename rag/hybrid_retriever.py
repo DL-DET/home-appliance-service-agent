@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
-from pathlib import Path
 
 import jieba
 from langchain_core.documents import Document
 from rank_bm25 import BM25Okapi
+
+from utils.path_tool import get_basename
 
 jieba.setLogLevel(logging.WARNING)
 
@@ -62,7 +63,7 @@ def tokenize(text: str) -> list[str]:
 
 def document_key(document: Document) -> tuple[str, str]:
     """用来源文件名 + 内容做去重 key，避免同一 chunk 被融合两次。"""
-    source = Path(str(document.metadata.get("source", ""))).name
+    source = get_basename(str(document.metadata.get("source", "")))
     return source, document.page_content
 
 

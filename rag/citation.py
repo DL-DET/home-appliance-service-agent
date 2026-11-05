@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from pathlib import Path
+
+from utils.path_tool import get_basename
 
 CITATION_PATTERN = re.compile(
     r"([^\n，。；、：:（）()\[\]{}<>\"'|]+\.(?:txt|pdf|docx))",
@@ -16,7 +17,7 @@ def normalize_source(label: str) -> str:
     """只保留文件名，去掉页码和目录。"""
     text = str(label or "").strip()
     text = re.split(r"[（(]第", text, maxsplit=1)[0]
-    return Path(text).name.strip().casefold()
+    return get_basename(text).strip().casefold()
 
 
 def extract_citations(answer: str) -> list[str]:
@@ -25,7 +26,7 @@ def extract_citations(answer: str) -> list[str]:
     for match in CITATION_PATTERN.finditer(answer or ""):
         # 允许文件名里有空格，同时去掉列表符号和多余空白。
         name = match.group(1).strip().lstrip("-*• ").strip()
-        name = Path(name).name.strip()
+        name = get_basename(name).strip()
         if name and name not in citations:
             citations.append(name)
     return citations
@@ -44,7 +45,9 @@ def citation_integrity(answer: str, sources: Iterable[str]) -> tuple[bool, list[
 
 def ensure_real_sources(answer: str, sources: Iterable[str]) -> str:
     """没有引用就补真实来源；有假引用就删掉并替换成真实来源。"""
-    source_labels = [str(source).strip() for source in sources if str(source).strip()]
+    source_labels = [
+        get_basename(str(source)) for source in sources if str(source).strip()
+    ]
     if not source_labels:
         return answer
 

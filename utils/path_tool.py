@@ -24,5 +24,11 @@ def get_abs_path(relative_path:str)->str:
     project_root=get_project_root()
     return os.path.join(project_root,relative_path)
 
+
+def get_basename(path: str) -> str:
+    """兼容 Windows 反斜杠和 POSIX 斜杠，只返回文件名。"""
+    text = str(path or "").strip().replace("\\", "/").rstrip("/")
+    return text.rsplit("/", 1)[-1] if text else ""
+
 if __name__=="__main__":
     print(get_abs_path("config/config.txt"))
