@@ -33,6 +33,8 @@ def test_refusal_detected():
     assert refusal_detected("我没有查到编号为 ORD-2025-1002 的订单信息")
     assert refusal_detected("经查询并未找到该订单")
     assert refusal_detected("该订单不存在")
+    assert refusal_detected("天气信息不在我的服务范围内")
+    assert refusal_detected("这个问题在服务范围外")
     assert not refusal_detected("已签收，已放至驿站")
 
 

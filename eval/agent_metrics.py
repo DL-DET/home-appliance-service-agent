@@ -30,6 +30,9 @@ DEFAULT_REFUSAL_PHRASES = (
     "无法确认",
     "抱歉",
     "不支持",
+    "不在我的服务范围",
+    "不在服务范围",
+    "服务范围外",
 )
 
 BUSINESS_TOOLS = {"rag_summarize", "get_order_status", "fetch_external_data"}

@@ -17,7 +17,7 @@ hybrid:
   bm25_candidate_k: 10
   rrf_k: 60
   vector_weight: 1.0
-  bm25_weight: 0.5
+  bm25_weight: 0.3
   # 同一来源最多取 1 个 chunk，避免一个文件占满上下文；
   # 如果答案依赖同文档多个片段，可调到 2 并在评测集上验证。
   max_per_source: 1

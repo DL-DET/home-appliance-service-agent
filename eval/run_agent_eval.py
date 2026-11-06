@@ -66,6 +66,9 @@ def rescore_results(
             actual_route=item.get("actual_route"),
         )
         _attach_completion(result, str(item.get("error", "")))
+        result["input_tokens"] = item.get("input_tokens")
+        result["output_tokens"] = item.get("output_tokens")
+        result["total_tokens"] = item.get("total_tokens")
         rescored.append(result)
 
     return rescored, missing
